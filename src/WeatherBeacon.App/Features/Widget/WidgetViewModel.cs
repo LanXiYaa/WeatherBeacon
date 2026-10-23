@@ -40,7 +40,7 @@ public sealed class WidgetViewModel : INotifyPropertyChanged
         if(Hours.SequenceEqual(items))return;
         Hours.Clear();foreach(var item in items)Hours.Add(item);
     }
-    public static string Glyph(WeatherKind k)=>k switch {WeatherKind.Clear=>"☀",WeatherKind.Cloudy=>"☁",WeatherKind.Rain=>"☂",WeatherKind.Snow=>"❄",WeatherKind.Fog=>"≋",WeatherKind.Thunderstorm=>"ϟ",_=>"?"};
+    public static string Glyph(WeatherKind k)=>k switch {WeatherKind.Clear=>"☀",WeatherKind.Cloudy=>"☁",WeatherKind.Overcast=>"☁",WeatherKind.Rain=>"☂",WeatherKind.Snow=>"❄",WeatherKind.Fog=>"≋",WeatherKind.Thunderstorm=>"ϟ",_=>"?"};
     private void Changed([CallerMemberName]string? name=null)=>PropertyChanged?.Invoke(this,new(name));
 }
 

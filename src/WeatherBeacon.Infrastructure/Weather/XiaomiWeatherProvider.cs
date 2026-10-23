@@ -57,13 +57,13 @@ public sealed class XiaomiWeatherProvider : IWeatherProvider
     }
     public static WeatherKind Kind(string code) => code switch
     {
-        "0" => WeatherKind.Clear, "1" or "2" => WeatherKind.Cloudy,
+        "0" => WeatherKind.Clear, "1" => WeatherKind.Cloudy, "2" => WeatherKind.Overcast,
         "4" or "5" => WeatherKind.Thunderstorm,
         "13" or "14" or "15" or "16" or "17" or "26" or "27" or "28" => WeatherKind.Snow,
         "18" or "20" or "29" or "30" or "31" or "53" => WeatherKind.Fog,
         "3" or "6" or "7" or "8" or "9" or "10" or "11" or "12" or "19" or "21" or "22" or "23" or "24" or "25" => WeatherKind.Rain,
         _ => WeatherKind.Unknown
     };
-    public static string Label(WeatherKind kind) => kind switch { WeatherKind.Clear=>"晴", WeatherKind.Cloudy=>"多云 / 阴", WeatherKind.Rain=>"雨", WeatherKind.Snow=>"雪", WeatherKind.Fog=>"雾 / 霾", WeatherKind.Thunderstorm=>"雷暴", _=>"未知天气" };
+    public static string Label(WeatherKind kind) => kind switch { WeatherKind.Clear=>"晴", WeatherKind.Cloudy=>"多云", WeatherKind.Overcast=>"阴", WeatherKind.Rain=>"雨", WeatherKind.Snow=>"雪", WeatherKind.Fog=>"雾 / 霾", WeatherKind.Thunderstorm=>"雷暴", _=>"未知天气" };
 }
 

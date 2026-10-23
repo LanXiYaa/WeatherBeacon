@@ -1,5 +1,5 @@
 namespace WeatherBeacon.Core.Models;
-public enum WeatherKind { Unknown, Clear, Cloudy, Rain, Snow, Fog, Thunderstorm }
+public enum WeatherKind { Unknown, Clear, Cloudy, Overcast, Rain, Snow, Fog, Thunderstorm }
 public enum AlertLevel { Blue, Yellow, Orange, Red }
 public record HourlyWeather(DateTimeOffset Time, double? Temperature, WeatherKind Kind);
 public record DailyWeather(DateOnly Date, double? Low, double? High, WeatherKind Kind);

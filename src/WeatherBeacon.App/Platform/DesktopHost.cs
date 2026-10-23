@@ -4,7 +4,9 @@ using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
+using WeatherBeacon.Features.Settings;
 namespace WeatherBeacon.Platform;
 public sealed class DesktopHost : IDisposable
 {
@@ -33,6 +35,7 @@ public sealed class DesktopHost : IDisposable
  [DllImport("user32.dll")]static extern bool GetWindowRect(nint h,out R r);
  [DllImport("user32.dll")]static extern bool GetClientRect(nint h,out R r);
  [DllImport("user32.dll")]static extern nint WindowFromPoint(P point);
+ [DllImport("user32.dll")]static extern bool GetCursorPos(out P point);
  [DllImport("user32.dll")]static extern nint GetAncestor(nint h,uint flags);
  [DllImport("user32.dll")]static extern bool ShowWindow(nint h,int cmd);
  public int SavedPosition{get;set;}
@@ -46,8 +49,10 @@ public sealed class DesktopHost : IDisposable
  readonly string log=Path.Combine(LogFolder,$"desktop-{DateTime.Now:yyyyMMdd-HHmmss}-{Environment.ProcessId}.jsonl");
  public string Status{get;private set;}="桌面嵌入尚未初始化";
  public event Action<string>? StatusChanged;
+ public event Action? DisplayChanged;
  public bool UserHidden{get;set;}
  public bool IsAttached=>handle!=0&&IsWindow(host)&&GetParent(handle)==host&&(Style(handle)&0x40000000)!=0&&(Style(handle)&0x80000000)==0;
+ public bool IsWindowAvailable=>handle!=0&&IsWindow(handle)&&IsWindowVisible(handle)&&!IsIconic(handle)&&!UserHidden;
  static string Class(nint h){var s=new StringBuilder(256);GetClassName(h,s,256);return s.ToString();}
  void SetStatus(string s){if(Status==s)return;Status=s;StatusChanged?.Invoke(s);}
  public void Record(string reason,int error=0)
@@ -92,6 +97,7 @@ public sealed class DesktopHost : IDisposable
   callback=(_,e,h,_,_,_,_)=>{if(disposed||window==null)return;window.Dispatcher.BeginInvoke(new Action(()=>{if(!disposed)Record($"win-event-0x{e:X}");}));};
   foreach(var range in new[]{(3u,3u),(0x16u,0x17u)}){var hook=SetWinEventHook(range.Item1,range.Item2,0,callback,0,0,0);if(hook!=0)hooks.Add(hook);}
   timer.Tick+=(_,_)=>{Record("state-change");if(host!=0&&!IsAttached)SetStatus("桌面嵌入已失效；请退出后重新启动，诊断信息已记录");};timer.Start();
+  try{Microsoft.Win32.SystemEvents.DisplaySettingsChanged+=(_,_)=>window?.Dispatcher.BeginInvoke(new Action(()=>{if(!disposed)DisplayChanged?.Invoke();}));}catch{}
  }
  public void RestoreOrdinary()
  {
@@ -112,7 +118,81 @@ public sealed class DesktopHost : IDisposable
   if(!onScreen||rectangle.Width<=0||rectangle.Height<=0||!IsWindowVisible(handle)||clipped)Fail("启动可见性验证失败，已重置到主显示器",0);
   Record("startup-final");
  }
- public void Position(Window w,double x,double y){var dpi=System.Windows.Media.VisualTreeHelper.GetDpi(w);var p=new P{X=(int)(x*dpi.DpiScaleX),Y=(int)(y*dpi.DpiScaleY)};ScreenToClient(host,ref p);SetWindowPos(handle,0,p.X,p.Y,0,0,0x15);}
+ public System.Drawing.Rectangle WindowBounds
+ {
+  get{GetWindowRect(handle,out var r);return System.Drawing.Rectangle.FromLTRB(r.Left,r.Top,r.Right,r.Bottom);}
+ }
+ public System.Drawing.Point CursorPosition{get{GetCursorPos(out var p);return new(p.X,p.Y);}}
+ public bool IsCompletelyCovered()
+ {
+  if(!IsWindowAvailable)return true;
+  GetWindowRect(handle,out var r);var width=r.Right-r.Left;var height=r.Bottom-r.Top;
+  if(width<=0||height<=0)return true;
+  for(int row=1;row<=5;row++)for(int column=1;column<=7;column++)
+  {
+   var sample=new P{X=r.Left+width*column/8,Y=r.Top+height*row/6};
+   if(WindowFromPoint(sample)==handle)return false;
+  }
+  return true;
+ }
+ public void MoveToScreen(int screenX,int screenY)
+ {
+  if(handle==0)return;var p=new P{X=screenX,Y=screenY};
+  if(IsAttached)ScreenToClient(host,ref p);
+  SetWindowPos(handle,0,p.X,p.Y,0,0,0x0015); // NOSIZE | NOZORDER | NOACTIVATE
+ }
+ public WidgetPlacement CapturePlacement(Window w)
+ {
+  GetWindowRect(handle,out var r);var rect=System.Drawing.Rectangle.FromLTRB(r.Left,r.Top,r.Right,r.Bottom);
+  var screen=System.Windows.Forms.Screen.FromRectangle(rect);var work=screen.WorkingArea;
+  var availableWidth=Math.Max(1,work.Width-rect.Width);var availableHeight=Math.Max(1,work.Height-rect.Height);
+  var dpi=VisualTreeHelper.GetDpi(w);
+  return new WidgetPlacement
+  {
+   MonitorDeviceName=screen.DeviceName,Left=rect.Left,Top=rect.Top,Width=rect.Width,Height=rect.Height,
+   MonitorLeft=screen.Bounds.Left,MonitorTop=screen.Bounds.Top,MonitorWidth=screen.Bounds.Width,MonitorHeight=screen.Bounds.Height,
+   WorkAreaLeft=work.Left,WorkAreaTop=work.Top,WorkAreaWidth=work.Width,WorkAreaHeight=work.Height,
+   DpiScale=dpi.DpiScaleX,
+   RelativeX=Math.Clamp((rect.Left-work.Left)/(double)availableWidth,0,1),
+   RelativeY=Math.Clamp((rect.Top-work.Top)/(double)availableHeight,0,1)
+  };
+ }
+ public WidgetPlacement ApplyPlacement(Window w,WidgetPlacement? saved)
+ {
+  var screens=System.Windows.Forms.Screen.AllScreens;
+  if(screens.Length==0)throw new InvalidOperationException("系统没有可用显示器");
+  var primary=System.Windows.Forms.Screen.PrimaryScreen??screens[0];
+  var target=saved is null?primary:screens.FirstOrDefault(s=>string.Equals(s.DeviceName,saved.MonitorDeviceName,StringComparison.OrdinalIgnoreCase));
+  if(target is null&&saved is not null)
+  {
+   var oldMonitor=new System.Drawing.Rectangle(saved.MonitorLeft,saved.MonitorTop,Math.Max(1,saved.MonitorWidth),Math.Max(1,saved.MonitorHeight));
+   target=screens.OrderByDescending(s=>IntersectionArea(oldMonitor,s.Bounds)).ThenBy(s=>Distance(s.Bounds,oldMonitor)).First();
+  }
+  target??=primary;
+  GetWindowRect(handle,out var current);
+  var width=Math.Max(1,current.Right-current.Left);var height=Math.Max(1,current.Bottom-current.Top);
+  var work=target.WorkingArea;
+  var availableWidth=Math.Max(0,work.Width-width);var availableHeight=Math.Max(0,work.Height-height);
+  var absoluteLeft=saved?.Left??work.Right-width-24;
+  var absoluteTop=saved?.Top??work.Top+24;
+  var relativeX=saved is null?1:Math.Clamp(saved.RelativeX,0,1);
+  var relativeY=saved is null?0:Math.Clamp(saved.RelativeY,0,1);
+  var hasUsableRelative=saved is not null&&(relativeX>0.0001||relativeY>0.0001||Math.Abs(saved.Left-work.Left)<8);
+  var x=hasUsableRelative?work.Left+(int)Math.Round(relativeX*availableWidth):Math.Clamp(absoluteLeft,work.Left,work.Left+availableWidth);
+  var y=hasUsableRelative?work.Top+(int)Math.Round(relativeY*availableHeight):Math.Clamp(absoluteTop,work.Top,work.Top+availableHeight);
+  x=Math.Clamp(x,work.Left,work.Left+availableWidth);y=Math.Clamp(y,work.Top,work.Top+availableHeight);
+  MoveToScreen(x,y);
+  return CapturePlacement(w);
+ }
+ static long IntersectionArea(System.Drawing.Rectangle a,System.Drawing.Rectangle b)
+ {
+  var intersection=System.Drawing.Rectangle.Intersect(a,b);
+  return intersection.IsEmpty?0:(long)intersection.Width*intersection.Height;
+ }
+ static double Distance(System.Drawing.Rectangle a,System.Drawing.Rectangle b)
+ {
+  var dx=a.Left+a.Width/2.0-(b.Left+b.Width/2.0);var dy=a.Top+a.Height/2.0-(b.Top+b.Height/2.0);return dx*dx+dy*dy;
+ }
  public void Dispose(){disposed=true;timer.Stop();foreach(var hook in hooks)UnhookWinEvent(hook);Record("shutdown");}
 }
 

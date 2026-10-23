@@ -1,15 +1,19 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using WeatherBeacon.Core.Models;
 using WeatherBeacon.Infrastructure.Weather;
 namespace WeatherBeacon.Features.Settings;
 public partial class SettingsWindow : Window
 {
- private readonly SettingsModel settings;private readonly XiaomiWeatherProvider provider;private readonly Action changed;
+ private readonly SettingsModel settings;private readonly XiaomiWeatherProvider provider;private readonly Action changed;private readonly Action resetPosition;
  private readonly CancellationTokenSource lifetime=new();
- public SettingsWindow(SettingsModel s,XiaomiWeatherProvider p,Action cityChanged)
+ public SettingsWindow(SettingsModel s,XiaomiWeatherProvider p,Action cityChanged,Action resetPosition)
  {
-  InitializeComponent();settings=s;provider=p;changed=cityChanged;DataContext=s;CurrentCity.Text=s.City?.Name??"尚未选择城市";
-  SourceInitialized+=(_,_)=>WeatherBeacon.Platform.SettingsBackdrop.Apply(this,settings.Material);
+  InitializeComponent();settings=s;provider=p;changed=cityChanged;this.resetPosition=resetPosition;DataContext=s;CurrentCity.Text=s.City?.Name??"尚未选择城市";
+  SourceInitialized+=(_,_)=>ApplyBackdrop();
+  Loaded+=(_,_)=>ShowPage(Navigation.SelectedIndex,false);
   settings.PropertyChanged+=SettingsChanged;
   Closed+=(_,_)=>{lifetime.Cancel();settings.PropertyChanged-=SettingsChanged;};
  }
@@ -21,11 +25,42 @@ public partial class SettingsWindow : Window
  private void Navigate(object sender,System.Windows.Controls.SelectionChangedEventArgs e)
  {
   if(AppearancePage is null || WeatherPage is null || AboutPage is null)return;
-  AppearancePage.Visibility=Navigation.SelectedIndex==0?Visibility.Visible:Visibility.Collapsed;
-  WeatherPage.Visibility=Navigation.SelectedIndex==1?Visibility.Visible:Visibility.Collapsed;
-  AboutPage.Visibility=Navigation.SelectedIndex==2?Visibility.Visible:Visibility.Collapsed;
+  ShowPage(Navigation.SelectedIndex,true);
  }
- private void SettingsChanged(object? sender,System.ComponentModel.PropertyChangedEventArgs e){if(e.PropertyName==nameof(SettingsModel.Material))WeatherBeacon.Platform.SettingsBackdrop.Apply(this,settings.Material); }
+ private void ShowPage(int index,bool animate)
+ {
+  var pages=new FrameworkElement[]{AppearancePage,WeatherPage,AboutPage};
+  if(index<0||index>=pages.Length)return;
+  var target=pages[index];
+  foreach(var page in pages)
+  {
+   page.BeginAnimation(OpacityProperty,null);
+   page.Visibility=PageEquals(page,target)?Visibility.Visible:Visibility.Collapsed;
+   page.Opacity=1;page.IsHitTestVisible=page==target;
+   if(page.RenderTransform is TranslateTransform transform)transform.Y=0;else page.RenderTransform=new TranslateTransform();
+  }
+  if(!animate)return;
+  target.Opacity=0;
+  var enter=new TranslateTransform(0,8);target.RenderTransform=enter;
+  var easing=new CubicEase{EasingMode=EasingMode.EaseOut};
+  target.BeginAnimation(OpacityProperty,new DoubleAnimation(0,1,TimeSpan.FromMilliseconds(250)){EasingFunction=easing});
+  enter.BeginAnimation(TranslateTransform.YProperty,new DoubleAnimation(8,0,TimeSpan.FromMilliseconds(250)){EasingFunction=easing});
+ }
+ static bool PageEquals(FrameworkElement left,FrameworkElement right)=>ReferenceEquals(left,right);
+ private void SettingsChanged(object? sender,System.ComponentModel.PropertyChangedEventArgs e)
+ {
+  if(e.PropertyName==nameof(SettingsModel.Material))ApplyBackdrop();
+ }
+ private void ApplyBackdrop()
+ {
+  settings.Material=Math.Clamp(settings.Material,0,3);
+  var result=WeatherBeacon.Platform.SettingsBackdrop.Apply(this,settings.Material);
+  settings.SetMaterialStatus(result.Description);
+ }
+ private void ResetPosition_Click(object sender,RoutedEventArgs e)
+ {
+  resetPosition();Status.Text="小组件位置已重置到主显示器右上。";
+ }
  private async void Search_Click(object sender,RoutedEventArgs e)
  {
   SearchButton.IsEnabled=false;Status.Text="正在搜索…";
