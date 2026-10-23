@@ -22,6 +22,8 @@ public sealed class WeatherScene : FrameworkElement
  private readonly Star[] stars=BuildStars(74);
  private double time;
  private bool windowActive=true;
+ public event EventHandler? RenderFailed;
+ public string? RenderFailure{get;private set;}
  public long RenderedFrames{get;private set;}
  public bool IsAnimating=>timer.IsEnabled;
 
@@ -109,6 +111,16 @@ public sealed class WeatherScene : FrameworkElement
  }
 
  protected override void OnRender(DrawingContext dc)
+ {
+  if(RenderFailure is not null)return;
+  try{DrawScene(dc);}
+  catch(Exception ex)
+  {
+   timer.Stop();RenderFailure=ex.GetType().Name;
+   Dispatcher.BeginInvoke(new Action(()=>{Animated=false;Visibility=Visibility.Collapsed;RenderFailed?.Invoke(this,EventArgs.Empty);}));
+  }
+ }
+ private void DrawScene(DrawingContext dc)
  {
   base.OnRender(dc);
   double w=ActualWidth,h=ActualHeight;
@@ -281,3 +293,4 @@ public sealed class WeatherScene : FrameworkElement
  readonly record struct Particle(double X,double Y,double Speed,double Length,double Phase,double Drift){public double Sway=>.35+Drift*.9;public double Size=>1.25+Length*.42;}
  readonly record struct Star(double X,double Y,double Size,double Phase);
 }
+

@@ -38,6 +38,9 @@ public sealed class DesktopHost : IDisposable
  [DllImport("user32.dll")]static extern bool GetCursorPos(out P point);
  [DllImport("user32.dll")]static extern nint GetAncestor(nint h,uint flags);
  [DllImport("user32.dll")]static extern bool ShowWindow(nint h,int cmd);
+ public object? SavedPlacement{get;set;}
+ public string AnimationStatus{get;set;}="not-initialized";
+ public long AnimationFrames{get;set;}
  public int SavedPosition{get;set;}
  public bool SavedHidden{get;set;}
  delegate void EventProc(nint hook,uint e,nint h,int obj,int child,uint thread,uint time);
@@ -61,7 +64,7 @@ public sealed class DesktopHost : IDisposable
   GetWindowRect(handle,out var rect);GetWindowRect(host,out var hostRect);
   var screens=System.Windows.Forms.Screen.AllScreens.Select(s=>new{name=s.DeviceName,bounds=s.Bounds,workArea=s.WorkingArea,primary=s.Primary}).ToArray();
   var hit=WindowFromPoint(new P{X=(rect.Left+rect.Right)/2,Y=(rect.Top+rect.Bottom)/2});
-  var state=new{centerHit=$"0x{hit:X}",centerRoot=$"0x{GetAncestor(hit,2):X}",centerBelongsToWidget=GetAncestor(hit,2)==handle,rect,hostRect,screens,monitor=System.Windows.Forms.Screen.FromHandle(handle).DeviceName,savedPosition=SavedPosition,savedHidden=SavedHidden,attached=IsAttached,hwnd=$"0x{handle:X}",parent=$"0x{parent:X}",host=$"0x{host:X}",hostType=Class(host),visible=IsWindowVisible(handle),hostVisible=IsWindowVisible(host),minimized=IsIconic(handle),userHidden=UserHidden,style=$"0x{Style(handle):X}",foreground=$"0x{fg:X}",foregroundType=Class(fg)};
+  var state=new{savedPlacement=SavedPlacement,animationStatus=AnimationStatus,animationFrames=AnimationFrames,centerHit=$"0x{hit:X}",centerRoot=$"0x{GetAncestor(hit,2):X}",centerBelongsToWidget=GetAncestor(hit,2)==handle,rect,hostRect,screens,monitor=System.Windows.Forms.Screen.FromHandle(handle).DeviceName,savedPosition=SavedPosition,savedHidden=SavedHidden,attached=IsAttached,hwnd=$"0x{handle:X}",parent=$"0x{parent:X}",host=$"0x{host:X}",hostType=Class(host),visible=IsWindowVisible(handle),hostVisible=IsWindowVisible(host),minimized=IsIconic(handle),userHidden=UserHidden,style=$"0x{Style(handle):X}",foreground=$"0x{fg:X}",foregroundType=Class(fg)};
   var options=new JsonSerializerOptions{IncludeFields=true};var json=JsonSerializer.Serialize(state,options);if(reason=="state-change"&&json==last)return;last=json;
   try{Directory.CreateDirectory(LogFolder);File.AppendAllText(log,JsonSerializer.Serialize(new{time=DateTimeOffset.Now,reason,error,state},options)+Environment.NewLine);}
   catch{SetStatus("诊断日志写入失败，请检查本地目录权限");}
@@ -162,6 +165,7 @@ public sealed class DesktopHost : IDisposable
   var screens=System.Windows.Forms.Screen.AllScreens;
   if(screens.Length==0)throw new InvalidOperationException("系统没有可用显示器");
   var primary=System.Windows.Forms.Screen.PrimaryScreen??screens[0];
+  if(saved is not null && (!double.IsFinite(saved.RelativeX)||!double.IsFinite(saved.RelativeY)||!screens.Any(s=>s.WorkingArea.IntersectsWith(new System.Drawing.Rectangle(saved.Left,saved.Top,Math.Max(1,saved.Width),Math.Max(1,saved.Height)))))){Record("saved-placement-invalid-reset-primary");saved=null;}
   var target=saved is null?primary:screens.FirstOrDefault(s=>string.Equals(s.DeviceName,saved.MonitorDeviceName,StringComparison.OrdinalIgnoreCase));
   if(target is null&&saved is not null)
   {
@@ -195,5 +199,6 @@ public sealed class DesktopHost : IDisposable
  }
  public void Dispose(){disposed=true;timer.Stop();foreach(var hook in hooks)UnhookWinEvent(hook);Record("shutdown");}
 }
+
 
 

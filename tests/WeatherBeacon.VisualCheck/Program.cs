@@ -22,12 +22,13 @@ internal static class Program
   var output=Path.GetFullPath(args[0]);Directory.CreateDirectory(output);
   var widget=new WidgetWindow();var content=(FrameworkElement)widget.Content;
   SetWidgetData(content,WeatherKind.Clear,true);
-  Render(content,420,430,Path.Combine(output,"widget-clear-day.png"));
+  Render(content,(int)widget.Width,(int)widget.Height,Path.Combine(output,"widget-clear-day.png"));
   SetWidgetData(content,WeatherKind.Clear,false);
-  Render(content,420,430,Path.Combine(output,"widget-clear-night.png"));
+  Render(content,(int)widget.Width,(int)widget.Height,Path.Combine(output,"widget-clear-night.png"));
   SetWidgetData(content,WeatherKind.Rain,false);
-  Render(content,420,430,Path.Combine(output,"widget-rain-night.png"));
+  Render(content,(int)widget.Width,(int)widget.Height,Path.Combine(output,"widget-rain-night.png"));
 
+  if(args.Length>1 && args[1]=="glass-only"){Console.WriteLine("PASS: glass layout rendered in day, night and rain states.");return;}
   var panel=new WrapPanel{Width=720,Background=new SolidColorBrush(Color.FromRgb(17,34,49))};
   foreach(var kind in Enum.GetValues<WeatherKind>())panel.Children.Add(new WeatherIcon{Kind=kind,Width=80,Height=80});
   Render(panel,720,160,Path.Combine(output,"icons.png"));
@@ -166,4 +167,5 @@ internal static class Program
   var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bmp));using var stream=File.Create(path);encoder.Save(stream);
  }
 }
+
 

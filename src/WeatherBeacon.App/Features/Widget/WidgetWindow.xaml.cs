@@ -27,6 +27,7 @@ public partial class WidgetWindow : Window
   InitializeComponent();
   DataContext=vm;
   ShowInTaskbar=false;
+  Scene.RenderFailed+=(_,_)=>{Scene.Visibility=Visibility.Collapsed;Scene.Effect=null;desktop.AnimationStatus="failed-static-fallback";desktop.Record("animation-failed-static-fallback");};
   SceneClip.SizeChanged+=(_,_)=>UpdateClip();
   var menu=new ContextMenu();var open=new MenuItem{Header="设置…"};open.Click+=(_,_)=>OpenSettings();menu.Items.Add(open);
   var retry=new MenuItem{Header="立即刷新"};retry.Click+=async (_,_)=>await Refresh();menu.Items.Add(retry);ContextMenu=menu;
@@ -56,11 +57,13 @@ public partial class WidgetWindow : Window
   desktop.SavedHidden=settings.WidgetHidden;
   settings.WidgetHidden=false;desktop.UserHidden=false;
   WindowState=WindowState.Normal;Show();Activate();
-  desktop.Attach(this);
+  desktop.SavedPlacement=settings.Placement;
+  desktop.StartOrdinary(this);
   settings.Placement=desktop.ApplyPlacement(this,settings.Placement);
   settings.SetDesktopStatus(desktop.Status);
   ApplyAppearance();
   desktop.VerifyStartup();
+  _=Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle,new Action(()=>{desktop.AnimationFrames=Scene.RenderedFrames;desktop.AnimationStatus=Scene.RenderFailure is null?$"initialized; frames={Scene.RenderedFrames}; running={Scene.IsAnimating}":"failed-static-fallback";desktop.Record("animation-startup-check");}));
   if(visibilityMenu!=null)visibilityMenu.Text="隐藏小组件";
   if(settings.City is null)OpenSettings();else await Refresh();
  }
@@ -213,6 +216,8 @@ public partial class WidgetWindow : Window
   clock.Stop();refresh.Stop();occlusion.Stop();click.Stop();lifetime.Cancel();desktop.Dispose();settingsWindow?.Close();tray?.Dispose();trayIcon?.Dispose();
  }
 }
+
+
 
 
 

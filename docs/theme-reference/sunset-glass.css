@@ -1,0 +1,472 @@
+/* ==========================================================================
+   WEATHER / BEACON - 现代流光毛玻璃主题 (Sunset Glassmorphism)[cite: 3]
+   ========================================================================== */
+
+:root {
+  /* 核心色彩变量 */
+  --bg-gradient: radial-gradient(circle at 75% 20%, #4a332d 0%, #2a1f2d 55%, #161523 100%);
+  --card-bg: linear-gradient(155deg, rgba(62, 46, 44, 0.65) 0%, rgba(34, 28, 38, 0.78) 100%);
+  --inner-bento-bg: rgba(255, 255, 255, 0.045);
+  
+  /* 边框与高光 */
+  --border-light: rgba(255, 255, 255, 0.14);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --inner-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  
+  /* 文本颜色 */
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.68);
+  --text-muted: rgba(255, 255, 255, 0.42);
+  
+  /* 点缀色 */
+  --accent-amber: #fbbf24;
+  --accent-emerald: #34d399;
+  --accent-cyan: #38bdf8;
+  
+  /* 尺寸与圆角 */
+  --card-radius: 34px;
+  --bento-radius: 22px;
+  --blur-strength: 28px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 外部背景容器 */
+body, .weather-stage {
+  background: var(--bg-gradient);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "MiSans", "Helvetica Neue", sans-serif;
+  color: var(--text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+/* ==========================================================================
+   1. 主体毛玻璃外框 (Main Weather Card)
+   ========================================================================== */
+.weather-card {
+  position: relative;
+  width: 460px;
+  padding: 28px 24px 22px;
+  border-radius: var(--card-radius);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--blur-strength)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--blur-strength)) saturate(160%);
+  border: 1px solid var(--border-light);
+  box-shadow: 
+    var(--inner-glow),
+    0 32px 64px -16px rgba(0, 0, 0, 0.65),
+    0 0 80px -20px rgba(251, 191, 36, 0.12);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 右上角环境暖光晕 (Ambient Sun Glow) */
+.weather-card::before {
+  content: "";
+  position: absolute;
+  top: 30px;
+  right: 25px;
+  width: 170px;
+  height: 170px;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.25) 0%, rgba(245, 158, 11, 0.05) 50%, transparent 72%);
+  filter: blur(18px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ==========================================================================
+   2. 顶部栏：位置胶囊 & 品牌标识 (Header)[cite: 3]
+   ========================================================================== */
+.card-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 左侧位置胶囊[cite: 3] */
+.location-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 11px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.location-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* 绿色呼吸定位圆点[cite: 3] */
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--accent-emerald);
+  box-shadow: 0 0 8px var(--accent-emerald);
+}
+
+/* 右侧品牌水印[cite: 3] */
+.brand-watermark {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   3. 主视觉区：大字号温度、状态胶囊与立体太阳 (Hero Section)[cite: 3]
+   ========================================================================== */
+.hero-section {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px 6px;
+}
+
+/* 超大号极细温度数字[cite: 3] */
+.hero-temp {
+  font-size: 86px;
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: -3px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  text-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.hero-temp .degree-symbol {
+  font-size: 38px;
+  font-weight: 300;
+  margin-top: 8px;
+  margin-left: 2px;
+}
+
+/* 天气状况与 AQI 胶囊组[cite: 3] */
+.hero-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weather-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.weather-status-pill .dot-amber {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+}
+
+.weather-status-pill .divider {
+  width: 1px;
+  height: 11px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* 空气质量优 (翡翠绿胶囊)[cite: 3] */
+.aqi-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  color: #6ee7b7;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 右侧立体拟物太阳容器[cite: 3] */
+.hero-sun-wrapper {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  filter: drop-shadow(0 10px 24px rgba(245, 158, 11, 0.35));
+}
+
+/* ==========================================================================
+   4. 二级微晶容器通用样式 (Inner Bento Box)[cite: 3]
+   ========================================================================== */
+.bento-box {
+  position: relative;
+  z-index: 1;
+  background: var(--inner-bento-bg);
+  border-radius: var(--bento-radius);
+  border: 1px solid var(--border-subtle);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.09);
+  padding: 16px 18px;
+}
+
+.bento-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.bento-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.bento-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-amber);
+  letter-spacing: 0.2px;
+}
+
+/* ==========================================================================
+   5. 逐小时趋势模块 (Hourly Forecast & Trend Line)[cite: 3]
+   ========================================================================== */
+.hourly-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  text-align: center;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.hourly-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.hourly-time {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.hourly-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hourly-temp {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 底部 SVG 贝塞尔温度流线容器[cite: 3] */
+.hourly-chart-container {
+  width: 100%;
+  height: 36px;
+  margin-top: 2px;
+  overflow: visible;
+}
+
+.trend-line-path {
+  fill: none;
+  stroke: url(#tempLineGradient); /* 对应 SVG 线性渐变：#fbbf24 -> #38bdf8 */
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 4px 6px rgba(251, 191, 36, 0.28));
+}
+
+.trend-node {
+  fill: #fff;
+  stroke: var(--accent-amber);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.8));
+}
+
+/* ==========================================================================
+   6. 未来 5 日预报模块 (5-Day Capsule Matrix)[cite: 3]
+   ========================================================================== */
+/* 视图切换器胶囊[cite: 3] */
+.view-switcher {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.switch-btn {
+  padding: 3px 9px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.switch-btn.active {
+  background: rgba(255, 255, 255, 0.13);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* 5列等宽胶囊网格[cite: 3] */
+.daily-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.daily-capsule {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 4px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.daily-capsule:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+/* 选中态（第一列：今天 10.23 高亮悬浮胶囊）[cite: 3] */
+.daily-capsule.active {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
+    0 8px 20px -4px rgba(0, 0, 0, 0.35);
+}
+
+.daily-day {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 3px;
+}
+
+.daily-capsule.active .daily-day {
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+
+.daily-date {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-icon {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.daily-range {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-range strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   7. 底部状态栏 (Footer)[cite: 3]
+   ========================================================================== */
+.card-footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 6px 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.footer-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.footer-source::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+  opacity: 0.85;
+}
+
+.footer-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.footer-sync:hover {
+  color: var(--text-secondary);
+}
