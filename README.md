@@ -1,16 +1,79 @@
-# WeatherBeacon 1.0.0.0 — Stage 3 / x64
+# WeatherBeacon
 
-Adds current-user startup registration, IP-assisted/manual city selection, a per-user/session single instance, bounded retries and refresh intervals, Celsius/Fahrenheit display, and detailed daily weather names. Existing ordinary-window behavior, tray, dragging, animations and settings transitions are retained.
+**A desktop weather widget for Windows · First official release · 1.0.0.0**
 
-Run the entire release/stage3-win-x64 folder after exiting older builds. Settings > Weather contains the new controls. Save unit/refresh changes explicitly; city selection persists automatically. Startup changes apply immediately.
+English | [简体中文](README_CN.md)
 
-Startup uses HKCU Run with --autostart. It repairs a moved executable path on manual launch only when enabled and not system-disabled. StartupApproved state is read conservatively and refreshed every two seconds in settings; its undocumented format may vary by Windows version. System-disabled entries require re-enabling through Task Manager. No administrator rights required.
+WeatherBeacon brings current conditions, hourly forecasts and a five-day outlook into a compact glass-style card. Place it on your desktop and keep the weather within reach.
 
-Refresh defaults to 15 minutes (5/10/15/30/60 available). Network attempts retry after 1/2 seconds, then failed refresh cycles back off 30/60/120/240/300 seconds. Network availability recovery schedules a refresh. Old valid in-memory weather remains visible on failures, including its original city/time. No cross-session weather cache.
+> **Made with AI: the project's code, interface and documentation were primarily generated and revised with AI assistance. The maintainer defines requirements, tests the application and makes release decisions.**
 
-IP lookup calls ipwho.is only on user action, then Xiaomi geo; user confirms the matched city. Minute-level rain data has not been validated: explicitly reports unavailable, never estimates minutes from hourly data.
+## Features
 
-Automated checks passed: unit conversion, parsing/network-failure state preservation, weather names, interval validation, registry enable/disable/path repair/system-disabled preservation (original values restored), second-process exit, WPF animation frames/pause/navigation/toggles/placement/occlusion. Real login startup, Task Manager UI actions, tray gestures, 10 Win+D cycles, network reconnection and mixed-DPI interaction remain unverified. Ordinary windows may be hidden by Win+D, unchanged from accepted stage 2.
+- **Weather at a glance:** current temperature, conditions, hourly forecasts, daily highs and lows, detailed weather descriptions and a highlighted current day.
+- **Glass-style interface:** translucent cards, soft gradients, weather icons and animated backgrounds, with animation, opacity and corner-radius controls.
+- **Flexible placement:** drag, lock or reset the widget and restore its saved position on launch.
+- **City selection:** search manually or request an approximate IP-based location and confirm the result.
+- **Temperature units:** Celsius and Fahrenheit.
+- **Automatic updates:** a 15-minute default interval, with 5, 10, 15, 30 and 60-minute options. Failed requests retain valid data from the current session and retry automatically.
+- **System tray:** single-click to show or hide, double-click for settings, or right-click for visibility, settings and exit controls.
+- **Startup support:** launch at the current user's sign-in without administrator privileges or automatically opening settings.
+- **Single instance:** another launch activates the existing instance.
 
-Build: dotnet publish src/WeatherBeacon.App/WeatherBeacon.App.csproj -c Release -r win-x64 --self-contained true -o output/stage3-win-x64
-See README_CN.md for the full acceptance matrix and test commands. Version stays 1.0.0.0. No alert, logging or developer-mode features added.
+## Download and run
+
+This release provides a **self-contained Windows x64 build**, targeting 64-bit Windows 10 / 11 devices. A separate .NET runtime installation is not required.
+
+1. Download and extract the complete release package.
+2. Run `WeatherBeacon.exe`.
+3. Double-click its tray icon, open the Weather page and select a city through search or IP lookup.
+4. Adjust appearance, refresh interval and temperature units, then save settings.
+
+Keep the executable together with its accompanying files. Exit the previous version through the tray before updating.
+
+## Usage notes
+
+- The widget is a **normal, non-topmost window**. Other applications can cover it, and Win+D may hide it. Use the tray to show it again. Persistent desktop-layer visibility is not guaranteed.
+- The widget's glass effect uses internal translucent layers and background blur; it does not blur desktop content in real time. Settings can use supported system materials, with fallback rendering where necessary.
+- If startup is disabled in Task Manager, re-enable it there. WeatherBeacon respects the system-disabled state.
+- After moving the application folder, launch it manually from the new location once. An enabled startup entry is updated only when it has not been disabled by the system.
+- VPNs, proxies and ISP routing can affect IP location accuracy. Confirm the city before applying it.
+
+## Data and privacy
+
+Weather and city search use Xiaomi weather services. Clicking IP lookup contacts `ipwho.is` for an approximate location, then matches it through Xiaomi's city service. These network services receive the information required for the requests.
+
+Settings are stored in `%LOCALAPPDATA%\WeatherBeacon\settings.json`. Existing desktop diagnostics are written locally to the executable's `logs` directory and include window state, placement, display layout and animation status. Review files before sharing them for troubleshooting.
+
+This release does not collect system hardware inventories or automatically upload diagnostic logs.
+
+## Current limitations
+
+- Verified minute-level precipitation data is unavailable. There is **no rain-start or rain-stop countdown**, and hourly forecasts are not converted into minute estimates.
+- Weather alert notifications, a first-run wizard and developer mode are not included.
+- Service availability and coverage depend on third-party endpoints. Offline sessions cannot receive new forecasts, and weather snapshots are not retained after exit.
+- Startup-state handling, materials and multi-monitor DPI behavior can vary across Windows versions. Real sign-in startup, network recovery and all hardware combinations have not been comprehensively validated.
+
+## Build from source
+
+Built with **C#, WPF and .NET 10**. Install the .NET 10 SDK and run from the repository directory:
+
+```powershell
+dotnet publish src/WeatherBeacon.App/WeatherBeacon.App.csproj -c Release -r win-x64 --self-contained true -o output/win-x64
+```
+
+Run `WeatherBeacon.exe` from the complete `output/win-x64` directory.
+
+```text
+src/WeatherBeacon.App/              WPF interface, settings and Windows integration
+src/WeatherBeacon.Core/             Weather models and interfaces
+src/WeatherBeacon.Infrastructure/   Weather and city services
+tests/                             Automated checks and UI regression tools
+docs/                              Design references and development records
+```
+
+## Feedback
+
+Include the application version, reproduction steps, expected behavior and actual behavior. For invisible-window issues, you may attach the matching diagnostic file from `logs`. For weather-service issues, include the selected city and approximate time.
+
+**WeatherBeacon 1.0.0.0 — Made with AI, improved through real needs and feedback.**
