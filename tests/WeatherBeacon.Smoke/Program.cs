@@ -1,0 +1,10 @@
+using System.Text.Json;
+using WeatherBeacon.Infrastructure.Weather;
+using WeatherBeacon.Core.Models;
+using var doc=JsonDocument.Parse(File.ReadAllText(args[0]));
+var snapshot=XiaomiWeatherProvider.Parse(doc.RootElement,"Test");
+if(snapshot.Temperature is null || snapshot.Hours.Count<12 || snapshot.Days.Count<4) throw new Exception("Missing weather data");
+if(snapshot.Hours.Zip(snapshot.Hours.Skip(1)).Any(p=>p.Second.Time-p.First.Time!=TimeSpan.FromHours(1))) throw new Exception("Non-hourly timeline");
+if(snapshot.Days.Any(d=>d.Low>d.High)) throw new Exception("Daily high/low reversed");
+if(XiaomiWeatherProvider.Kind("999")!=WeatherKind.Unknown) throw new Exception("Unknown code mishandled");
+Console.WriteLine($"PASS: current temperature, {snapshot.Hours.Count} hourly records, {snapshot.Days.Count} daily records, timeline, low/high, unknown code");
