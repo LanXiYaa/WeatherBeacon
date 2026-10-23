@@ -6,12 +6,13 @@ using WeatherBeacon.Core.Models;
 namespace WeatherBeacon.Infrastructure.Weather;
 public sealed class XiaomiWeatherProvider : IWeatherProvider
 {
-    private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private readonly HttpClient Client;
+    public XiaomiWeatherProvider(HttpClient? client=null){Client=client??new HttpClient{Timeout=TimeSpan.FromSeconds(15)};}
     private const string Root = "https://weatherapi.market.xiaomi.com/wtr-v3/";
     public string Id => "xiaomi";
     private static string S(JsonElement e, string key) => e.TryGetProperty(key, out var v) ? v.ToString() : "";
     private static double? N(string s) => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n : null;
-    private static async Task<JsonDocument> GetAsync(string path, CancellationToken ct)
+    private async Task<JsonDocument> GetAsync(string path, CancellationToken ct)
     {
         for (int attempt = 0; ; attempt++)
         {
@@ -51,10 +52,22 @@ public sealed class XiaomiWeatherProvider : IWeatherProvider
             var dailyCodes = d.GetProperty("weather").GetProperty("value");
             var temps = d.GetProperty("temperature").GetProperty("value");
             var first = DateOnly.FromDateTime(DateTimeOffset.Parse(S(d,"pubTime"), CultureInfo.InvariantCulture).DateTime);
-            for (int i=0; i<Math.Min(dailyCodes.GetArrayLength(), temps.GetArrayLength()); i++) days.Add(new(first.AddDays(i), N(S(temps[i],"to")), N(S(temps[i],"from")), Kind(S(dailyCodes[i],"from"))));
+            for (int i=0; i<Math.Min(dailyCodes.GetArrayLength(), temps.GetArrayLength()); i++) days.Add(new(first.AddDays(i), N(S(temps[i],"to")), N(S(temps[i],"from")), Kind(S(dailyCodes[i],"from")), DailyLabel(S(dailyCodes[i],"from"),S(dailyCodes[i],"to"))));
         }
-        return new(city, updated, N(S(c.GetProperty("temperature"),"value")), Label(kind), kind, hours, days, []);
+        return new(city, updated, N(S(c.GetProperty("temperature"),"value")), CodeLabel(S(c,"weather")), kind, hours, days, []);
     }
+    public async Task<IReadOnlyList<WeatherLocation>> LocateAsync(CancellationToken ct)
+    {
+        // IP lookup is only called after the user clicks the locate button.
+        using var doc=JsonDocument.Parse(await Client.GetStringAsync("https://ipwho.is/",ct));
+        var r=doc.RootElement;if(r.TryGetProperty("success",out var ok)&&!ok.GetBoolean())throw new HttpRequestException("IP lookup unavailable");
+        var lat=r.GetProperty("latitude").ToString();var lon=r.GetProperty("longitude").ToString();
+        using var cities=await GetAsync($"location/city/geo?latitude={Uri.EscapeDataString(lat)}&longitude={Uri.EscapeDataString(lon)}&locale=zh_cn",ct);
+        var root=cities.RootElement;var list=root.ValueKind==JsonValueKind.Array?root.EnumerateArray().ToArray():new[]{root};
+        return list.Select(e=>new WeatherLocation(S(e,"name")+" · "+S(e,"affiliation"),S(e,"locationKey"),N(S(e,"latitude")),N(S(e,"longitude")))).Where(c=>!string.IsNullOrEmpty(c.ProviderCityId)).ToArray();
+    }
+    public static string DailyLabel(string from,string to)=>from==to?CodeLabel(from):CodeLabel(from)+"转"+CodeLabel(to);
+    public static string CodeLabel(string code)=>code switch{"3"=>"阵雨","4"=>"雷阵雨","5"=>"雷阵雨伴冰雹","6"=>"雨夹雪","7"=>"小雨","8"=>"中雨","9"=>"大雨","10"=>"暴雨","11"=>"大暴雨","12"=>"特大暴雨","13"=>"阵雪","14"=>"小雪","15"=>"中雪","16"=>"大雪","17"=>"暴雪","18"=>"雾","19"=>"冻雨","20"=>"沙尘暴","21"=>"小到中雨","22"=>"中到大雨","23"=>"大到暴雨","24"=>"暴雨到大暴雨","25"=>"大暴雨到特大暴雨","53"=>"霾",_=>Label(Kind(code))};
     public static WeatherKind Kind(string code) => code switch
     {
         "0" => WeatherKind.Clear, "1" => WeatherKind.Cloudy, "2" => WeatherKind.Overcast,
@@ -66,4 +79,6 @@ public sealed class XiaomiWeatherProvider : IWeatherProvider
     };
     public static string Label(WeatherKind kind) => kind switch { WeatherKind.Clear=>"晴", WeatherKind.Cloudy=>"多云", WeatherKind.Overcast=>"阴", WeatherKind.Rain=>"雨", WeatherKind.Snow=>"雪", WeatherKind.Fog=>"雾 / 霾", WeatherKind.Thunderstorm=>"雷暴", _=>"未知天气" };
 }
+
+
 

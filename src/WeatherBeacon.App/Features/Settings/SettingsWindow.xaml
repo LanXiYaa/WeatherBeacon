@@ -55,13 +55,17 @@
       <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="桌面诊断" FontWeight="SemiBold"/><TextBlock Text="{Binding DesktopStatus}" TextWrapping="Wrap" Foreground="#EBCB8A" Margin="0,8"/><Button Content="打开诊断日志文件夹" Click="OpenDiagnostics" HorizontalAlignment="Left"/></StackPanel></Border>
      </StackPanel>
      <StackPanel x:Name="WeatherPage" Visibility="Collapsed">
+<Border Style="{StaticResource Card}"><StackPanel><DockPanel><ToggleButton x:Name="StartupToggle" DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" Click="Startup_Click" AutomationProperties.Name="开机自启"/><TextBlock Text="开机自启" VerticalAlignment="Center"/></DockPanel><TextBlock x:Name="StartupStatus" TextWrapping="Wrap" Margin="0,8,0,0"/></StackPanel></Border>
+<Border Style="{StaticResource Card}"><DockPanel><ComboBox x:Name="RefreshOptions" Width="210" DockPanel.Dock="Right" SelectedItem="{Binding RefreshMinutes, Mode=TwoWay}"/><TextBlock Text="自动刷新间隔（分钟）" VerticalAlignment="Center"/></DockPanel></Border>
+<Border Style="{StaticResource Card}"><DockPanel><ToggleButton DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding Fahrenheit, Mode=TwoWay}" AutomationProperties.Name="使用华氏温度"/><TextBlock Text="使用华氏温度 ℉（关闭为 ℃）" VerticalAlignment="Center"/></DockPanel></Border>
+<Border Style="{StaticResource Card}"><StackPanel><Button x:Name="LocateButton" Content="IP 自动定位" Click="Locate_Click" HorizontalAlignment="Left"/><TextBlock Text="点击后向 ipwho.is 查询公网 IP 大致位置，再通过小米匹配城市；结果请确认后使用。VPN 或运营商出口可能影响定位。" TextWrapping="Wrap" Margin="0,10,0,0" Foreground="#A9ADB7"/><TextBlock Text="暂无分钟级降水预报，不根据小时数据估算分钟。" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="#E7C984"/></StackPanel></Border>
       <TextBlock Text="天气" Style="{StaticResource SectionTitle}"/><TextBlock Text="选择城市并刷新天气数据" Style="{StaticResource SectionSubtitle}"/>
       <Border Style="{StaticResource Card}"><DockPanel><ComboBox DockPanel.Dock="Right" Width="210" SelectedIndex="0"><ComboBoxItem Content="小米天气"/></ComboBox><TextBlock Text="天气数据源" VerticalAlignment="Center"/></DockPanel></Border>
       <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="城市" FontSize="15" FontWeight="SemiBold"/><TextBlock x:Name="CurrentCity" Margin="0,9,0,18" Foreground="#B6E794"/><DockPanel><Button x:Name="SearchButton" DockPanel.Dock="Right" Content="搜索" Click="Search_Click" Margin="10,0,0,0"/><TextBox x:Name="Query" ToolTip="输入城市名称"/></DockPanel><ListBox x:Name="Results" DisplayMemberPath="Name" Height="170" Margin="0,14"/><Button Content="使用选中城市" HorizontalAlignment="Right" Click="SelectCity_Click"/></StackPanel></Border>
      </StackPanel>
      <StackPanel x:Name="AboutPage" Visibility="Collapsed">
       <TextBlock Text="关于 WeatherBeacon" Style="{StaticResource SectionTitle}"/><TextBlock Text="1.0.0.0 · x64" Style="{StaticResource SectionSubtitle}"/>
-      <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="WeatherBeacon" FontSize="28"/><TextBlock Text="1.0.0.0 · 动态天气与自由位置" Foreground="#B6E794" Margin="0,12"/><TextBlock Text="不透明天气画面、桌面自由拖动、设置材质与滑块开关。&#10;首次引导、开机自启、预警通知和开发者模式未在本轮实现。" TextWrapping="Wrap" LineHeight="25" Foreground="#A9ADB7"/></StackPanel></Border>
+      <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="WeatherBeacon" FontSize="28"/><TextBlock Text="1.0.0.0 · x64" Foreground="#B6E794" Margin="0,12"/><TextBlock Text="不透明天气画面、桌面自由拖动、设置材质与滑块开关。&#10;自启、城市定位、刷新恢复、温度单位与单实例。" TextWrapping="Wrap" LineHeight="25" Foreground="#A9ADB7"/></StackPanel></Border>
      </StackPanel>
     </Grid>
    </ScrollViewer>
@@ -69,4 +73,5 @@
   <Border Grid.Row="2" Background="#B817171C" BorderBrush="#494952" BorderThickness="0,1,0,0"><DockPanel Margin="24,10"><Button DockPanel.Dock="Right" Content="保存设置" Click="Save_Click"/><TextBlock x:Name="Status" Text="外观实时预览；拖动松开后位置自动保存。" FontSize="11" Foreground="#ADB1BC" VerticalAlignment="Center" TextWrapping="Wrap"/></DockPanel></Border>
  </Grid>
 </Window>
+
 

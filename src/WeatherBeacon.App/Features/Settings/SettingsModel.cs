@@ -28,6 +28,9 @@ public sealed class WidgetPlacement
 public sealed class SettingsModel : INotifyPropertyChanged
 {
  public event PropertyChangedEventHandler? PropertyChanged;
+ private int refreshMinutes=15;private bool fahrenheit;
+ public int RefreshMinutes{get=>refreshMinutes;set{if(value is not (5 or 10 or 15 or 30 or 60))value=15;if(refreshMinutes==value)return;refreshMinutes=value;Changed();}}
+ public bool Fahrenheit{get=>fahrenheit;set{if(fahrenheit==value)return;fahrenheit=value;Changed();}}
  private bool animations=true;
  public bool Animations {get=>animations;set{if(animations==value)return;animations=value;Changed();}}
  private int material=0; private double opacity=1,radius=24; private bool lockPosition;
@@ -51,5 +54,6 @@ public sealed class SettingsModel : INotifyPropertyChanged
  }
  public void Save(){Directory.CreateDirectory(Folder);var path=Path.Combine(Folder,"settings.json");File.WriteAllText(path+".tmp",JsonSerializer.Serialize(this));File.Move(path+".tmp",path,true);}
 }
+
 
 

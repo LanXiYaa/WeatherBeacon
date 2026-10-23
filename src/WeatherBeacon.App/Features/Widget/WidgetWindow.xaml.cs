@@ -20,18 +20,20 @@ public partial class WidgetWindow : Window
  private readonly DispatcherTimer click=new(){Interval=TimeSpan.FromMilliseconds(Forms.SystemInformation.DoubleClickTime+30)};
  private readonly WeatherBeacon.Platform.DesktopHost desktop=new();
  private System.Drawing.Icon? trayIcon;private DateTime lastDoubleClick;private Forms.ToolStripMenuItem? visibilityMenu;private Forms.NotifyIcon? tray;private SettingsWindow? settingsWindow;
+ private string? lastAttemptCity;private int failures;private DateTimeOffset lastAttempt=DateTimeOffset.MinValue;
  private bool refreshing,started,dragging;private System.Drawing.Point dragCursor;private System.Drawing.Rectangle dragBounds;
 
  public WidgetWindow()
  {
   InitializeComponent();
-  DataContext=vm;
+  DataContext=vm;vm.SetUnit(settings.Fahrenheit);
+  System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged+=NetworkChanged;
   ShowInTaskbar=false;
   Scene.RenderFailed+=(_,_)=>{Scene.Visibility=Visibility.Collapsed;Scene.Effect=null;desktop.AnimationStatus="failed-static-fallback";desktop.Record("animation-failed-static-fallback");};
   SceneClip.SizeChanged+=(_,_)=>UpdateClip();
   var menu=new ContextMenu();var open=new MenuItem{Header="设置…"};open.Click+=(_,_)=>OpenSettings();menu.Items.Add(open);
   var retry=new MenuItem{Header="立即刷新"};retry.Click+=async (_,_)=>await Refresh();menu.Items.Add(retry);ContextMenu=menu;
-  settings.PropertyChanged+=(_,e)=>{if(e.PropertyName is not nameof(SettingsModel.DesktopStatus) and not nameof(SettingsModel.MaterialStatus))ApplyAppearance();};
+  settings.PropertyChanged+=(_,e)=>{if(e.PropertyName is not nameof(SettingsModel.DesktopStatus) and not nameof(SettingsModel.MaterialStatus))ApplyAppearance();if(e.PropertyName==nameof(SettingsModel.Fahrenheit))vm.SetUnit(settings.Fahrenheit);if(e.PropertyName==nameof(SettingsModel.RefreshMinutes))refresh.Interval=TimeSpan.FromMinutes(settings.RefreshMinutes);};
   desktop.StatusChanged+=text=>settings.SetDesktopStatus(text);
   desktop.DisplayChanged+=RestoreForDisplayChange;
   clock.Tick+=(_,_)=>{vm.AlignHours(DateTimeOffset.Now);UpdateDayNight();};
@@ -53,7 +55,7 @@ public partial class WidgetWindow : Window
   started=true;
   ApplyAppearance();
   CreateTray();
-  clock.Start();refresh.Start();occlusion.Start();
+  refresh.Interval=TimeSpan.FromMinutes(settings.RefreshMinutes);clock.Start();refresh.Start();occlusion.Start();
   desktop.SavedHidden=settings.WidgetHidden;
   settings.WidgetHidden=false;desktop.UserHidden=false;
   WindowState=WindowState.Normal;Show();Activate();
@@ -65,7 +67,7 @@ public partial class WidgetWindow : Window
   desktop.VerifyStartup();
   _=Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle,new Action(()=>{desktop.AnimationFrames=Scene.RenderedFrames;desktop.AnimationStatus=Scene.RenderFailure is null?$"initialized; frames={Scene.RenderedFrames}; running={Scene.IsAnimating}":"failed-static-fallback";desktop.Record("animation-startup-check");}));
   if(visibilityMenu!=null)visibilityMenu.Text="隐藏小组件";
-  if(settings.City is null)OpenSettings();else await Refresh();
+  if(settings.City is null){if(!App.IsAutostart)OpenSettings();}else await Refresh();
  }
 
  private void CreateTray()
@@ -109,9 +111,10 @@ public partial class WidgetWindow : Window
  private async Task Refresh()
  {
   if(settings.City is null || refreshing)return;
-  refreshing=true;var city=settings.City;
+  if(lastAttemptCity==settings.City.ProviderCityId && DateTimeOffset.UtcNow-lastAttempt<TimeSpan.FromSeconds(15)){refresh.Interval=TimeSpan.FromSeconds(15);return;}
+  lastAttemptCity=settings.City.ProviderCityId;lastAttempt=DateTimeOffset.UtcNow;refreshing=true;var city=settings.City;
   try{await vm.RefreshAsync(provider,city,lifetime.Token);HoursScroll.ScrollToHorizontalOffset(0);UpdateDayNight();}
-  finally{refreshing=false;}
+  finally{refreshing=false;failures=vm.LastRefreshSucceeded?0:Math.Min(failures+1,5);refresh.Stop();refresh.Interval=vm.LastRefreshSucceeded?TimeSpan.FromMinutes(settings.RefreshMinutes):TimeSpan.FromSeconds(Math.Min(300,30*Math.Pow(2,failures-1)));refresh.Start();}
   if(settings.City!=city)await Refresh();
  }
 
@@ -211,11 +214,17 @@ public partial class WidgetWindow : Window
   }));
  }
 
+ public void ShowFromSecondInstance(){settings.WidgetHidden=false;desktop.UserHidden=false;WindowState=WindowState.Normal;Show();Activate();if(visibilityMenu!=null)visibilityMenu.Text="隐藏小组件";UpdateAnimationActivity();}
+ private void NetworkChanged(object? sender,System.Net.NetworkInformation.NetworkAvailabilityEventArgs e)
+ {if(e.IsAvailable)Dispatcher.BeginInvoke(new Action(()=>{refresh.Stop();refresh.Interval=TimeSpan.FromSeconds(15);refresh.Start();}));}
  private void OnClosed(object? sender,EventArgs e)
  {
+  System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged-=NetworkChanged;
   clock.Stop();refresh.Stop();occlusion.Stop();click.Stop();lifetime.Cancel();desktop.Dispose();settingsWindow?.Close();tray?.Dispose();trayIcon?.Dispose();
  }
 }
+
+
 
 
 

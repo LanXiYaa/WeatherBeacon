@@ -1,21 +1,16 @@
-# WeatherBeacon 1.0.0.0 — Stage 2 (x64)
+# WeatherBeacon 1.0.0.0 — Stage 3 / x64
 
-Stage 2 adds free desktop-widget positioning, opaque animated weather scenes, animation lifecycle control, settings-only system materials, page transitions and animated toggle switches. It does not add onboarding, startup registration, alert notifications, logging features or developer mode.
+Adds current-user startup registration, IP-assisted/manual city selection, a per-user/session single instance, bounded retries and refresh intervals, Celsius/Fahrenheit display, and detailed daily weather names. Existing ordinary-window behavior, tray, dragging, animations and settings transitions are retained.
 
-The WorkerW desktop embedding and tray interaction paths from stage 1 remain in place. The widget remains non-topmost. Its background is an opaque weather scene and is never Mica or Acrylic.
+Run the entire release/stage3-win-x64 folder after exiting older builds. Settings > Weather contains the new controls. Save unit/refresh changes explicitly; city selection persists automatically. Startup changes apply immediately.
 
-## Verification summary
+Startup uses HKCU Run with --autostart. It repairs a moved executable path on manual launch only when enabled and not system-disabled. StartupApproved state is read conservatively and refreshed every two seconds in settings; its undocumented format may vary by Windows version. System-disabled entries require re-enabling through Task Manager. No administrator rights required.
 
-| Actual observation | Automated checks | Not verified |
-|---|---|---|
-| WPF-generated screenshots show distinct clear day/night, cloud, overcast, rain, snow, fog and thunderstorm scenes; text remains readable on dark backdrops. | Release starts attached=true, parent=host=WorkerW, visible=true, minimized=false, at the saved 420x430 position. | Live mouse dragging and tray clicks while the desktop was covered by another foreground app. |
-| Two rain frames captured about 0.85 s apart visibly differ; frame count advanced 16 to 35. | Tracked to about 30 fps; animation stops when disabled, hidden/inactive, or fully covered; partially covered remains active. | Long-duration thermal and battery behavior. |
-| Final x64 self-contained build has FileVersion/ProductVersion 1.0.0.0 for all WeatherBeacon assemblies. | Zero CheckBox controls; rapid page switching settled correctly; negative-coordinate, disconnected-monitor and occlusion cases passed. | Windows 10 runtime material fallback and a real mixed-DPI monitor transition; fallback logic is implemented, but those systems were not available. |
+Refresh defaults to 15 minutes (5/10/15/30/60 available). Network attempts retry after 1/2 seconds, then failed refresh cycles back off 30/60/120/240/300 seconds. Network availability recovery schedules a refresh. Old valid in-memory weather remains visible on failures, including its original city/time. No cross-session weather cache.
 
-Animation sampling in the WPF visual-check process: 10.54% of one core (0.527% of total 20-core capacity), 194.9 MiB working set with animation on; 0% CPU, 193.9 MiB with animation off. The covered release process used 0.047 CPU-seconds over 5.03 s (0.94% of one core, 0.047% of total capacity) and 206.6 MiB working set.
+IP lookup calls ipwho.is only on user action, then Xiaomi geo; user confirms the matched city. Minute-level rain data has not been validated: explicitly reports unavailable, never estimates minutes from hourly data.
 
-Run `release/stage2-win-x64/WeatherBeacon.exe`. Keep the complete directory together. Build with .NET 10:
+Automated checks passed: unit conversion, parsing/network-failure state preservation, weather names, interval validation, registry enable/disable/path repair/system-disabled preservation (original values restored), second-process exit, WPF animation frames/pause/navigation/toggles/placement/occlusion. Real login startup, Task Manager UI actions, tray gestures, 10 Win+D cycles, network reconnection and mixed-DPI interaction remain unverified. Ordinary windows may be hidden by Win+D, unchanged from accepted stage 2.
 
-```powershell
-dotnet publish src/WeatherBeacon.App/WeatherBeacon.App.csproj -c Release -r win-x64 --self-contained true -o release/stage2-win-x64
-```
+Build: dotnet publish src/WeatherBeacon.App/WeatherBeacon.App.csproj -c Release -r win-x64 --self-contained true -o output/stage3-win-x64
+See README_CN.md for the full acceptance matrix and test commands. Version stays 1.0.0.0. No alert, logging or developer-mode features added.

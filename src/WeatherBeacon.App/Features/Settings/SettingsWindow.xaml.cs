@@ -8,14 +8,25 @@ namespace WeatherBeacon.Features.Settings;
 public partial class SettingsWindow : Window
 {
  private readonly SettingsModel settings;private readonly XiaomiWeatherProvider provider;private readonly Action changed;private readonly Action resetPosition;
+ private readonly System.Windows.Threading.DispatcherTimer startupPoll=new(){Interval=TimeSpan.FromSeconds(2)};
  private readonly CancellationTokenSource lifetime=new();
  public SettingsWindow(SettingsModel s,XiaomiWeatherProvider p,Action cityChanged,Action resetPosition)
  {
   InitializeComponent();settings=s;provider=p;changed=cityChanged;this.resetPosition=resetPosition;DataContext=s;CurrentCity.Text=s.City?.Name??"尚未选择城市";
+  RefreshOptions.ItemsSource=new[]{5,10,15,30,60};RefreshStartup();startupPoll.Tick+=(_,_)=>RefreshStartup();startupPoll.Start();
   SourceInitialized+=(_,_)=>ApplyBackdrop();
   Loaded+=(_,_)=>ShowPage(Navigation.SelectedIndex,false);
   settings.PropertyChanged+=SettingsChanged;
-  Closed+=(_,_)=>{lifetime.Cancel();settings.PropertyChanged-=SettingsChanged;};
+  Closed+=(_,_)=>{startupPoll.Stop();lifetime.Cancel();settings.PropertyChanged-=SettingsChanged;};
+ }
+ private void RefreshStartup(){var state=WeatherBeacon.Platform.StartupService.Read();StartupToggle.IsChecked=state.Enabled;StartupStatus.Text=state.Message;}
+ private void Startup_Click(object sender,RoutedEventArgs e)
+ {try{WeatherBeacon.Platform.StartupService.Set(StartupToggle.IsChecked==true);}catch(Exception ex){Status.Text=ex.Message;}RefreshStartup();}
+ private async void Locate_Click(object sender,RoutedEventArgs e)
+ {
+  LocateButton.IsEnabled=false;Status.Text="正在查询 IP 对应城市…";
+  try{Results.ItemsSource=await provider.LocateAsync(lifetime.Token);Status.Text=Results.Items.Count>0?"定位完成，请确认并使用选中城市。":"未匹配到城市，请手动搜索。";if(Results.Items.Count>0)Results.SelectedIndex=0;}
+  catch{Status.Text="IP 定位失败，请稍后重试或手动搜索。";}finally{LocateButton.IsEnabled=true;}
  }
  private void OpenDiagnostics(object sender,RoutedEventArgs e)
  {
@@ -75,6 +86,7 @@ public partial class SettingsWindow : Window
  private void Save_Click(object sender,RoutedEventArgs e)
  {try{settings.Save();Status.Text="设置已保存。";}catch{Status.Text="保存失败，请检查本地目录权限。";}}
 }
+
 
 
 
