@@ -17,6 +17,7 @@ internal static class Program
  [STAThread] static void Main(string[] args)
  {
   var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
+  SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
   if(args[0]=="--activate-notification")
   {
 #pragma warning disable CS0618
@@ -146,6 +147,28 @@ internal static class Program
   settings.DeveloperMode=true;navigation.SelectedIndex=4;Pump(300);Capture(window,Path.Combine(output,"developer.png"));
   Check(((FrameworkElement)window.FindName("DeveloperPage")).Visibility==Visibility.Visible,"developer page enabled");
   settings.DeveloperMode=false;Check(navigation.SelectedIndex==2,"disable exits developer page");
+  var toggle=(WeatherBeacon.Controls.ConfirmationSwitch)window.FindName("DeveloperToggle");
+  var dialog=(WeatherBeacon.Controls.ConfirmationDialog)window.FindName("DeveloperConfirmation");
+  var confirm=(Button)dialog.FindName("ConfirmButton");var cancel=(Button)dialog.FindName("CancelButton");
+  typeof(WeatherBeacon.Controls.ConfirmationSwitch).GetMethod("OnToggle",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.Invoke(toggle,null);
+  Check(toggle.IsChecked!=true,"initial click cannot animate switch on");
+  toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump(320);
+  Check(!settings.DeveloperMode&&toggle.IsChecked==false&&dialog.IsVisible,"pending confirmation does not toggle");
+  Capture(window,Path.Combine(output,"confirm-dialog.png"));
+  cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump(50);
+  Check(!settings.DeveloperMode&&!dialog.IsVisible,"cancel preserves off state");
+  toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump(300);
+  confirm.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));confirm.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+  Pump(260);if(SystemParameters.ClientAreaAnimation)Check(!settings.DeveloperMode,"spinner does not commit");Capture(window,Path.Combine(output,"confirm-spinner.png"));
+  Pump(460);if(SystemParameters.ClientAreaAnimation)Check(!settings.DeveloperMode,"stroke does not commit early");Capture(window,Path.Combine(output,"confirm-stroke.png"));
+  Pump(440);Capture(window,Path.Combine(output,"confirm-complete.png"));Pump(350);
+  Check(settings.DeveloperMode&&toggle.IsChecked==true&&!dialog.IsVisible,"complete then switch on");
+  toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump(30);Check(!settings.DeveloperMode,"disable remains immediate");
+  toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));confirm.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));dialog.Cancel();Pump(50);
+  Check(!settings.DeveloperMode,"cancel during stroke preserves off");
+  toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));confirm.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));window.Close();Pump(1400);
+  Check(!settings.DeveloperMode,"closing window cancels pending activation");
+  Console.WriteLine("PASS themed confirmation: cancel, duplicate confirm, spinner/stroke ordering, delayed toggle, disable, close cancellation.");
   window.Close();Console.WriteLine("PASS real alert parsing; malformed schema; threshold/off; repeat/restart/update/clear/city isolation; failed send retry; corruption; expiration; 20 weather/day-night overrides; real-data restore; notification/developer UI.");
  }
  static void Check(bool condition,string name){if(!condition)throw new Exception("FAIL "+name);}

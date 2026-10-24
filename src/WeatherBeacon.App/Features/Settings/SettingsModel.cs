@@ -49,8 +49,18 @@ public sealed class SettingsModel : INotifyPropertyChanged
  public double Opacity {get=>opacity;set{value=Math.Clamp(value,.2,1);if(Math.Abs(opacity-value)<.0001)return;opacity=value;Changed();}}
  public double Radius {get=>radius;set{value=Math.Clamp(value,0,48);if(Math.Abs(radius-value)<.0001)return;radius=value;Changed();}}
  public bool LockPosition {get=>lockPosition;set{if(lockPosition==value)return;lockPosition=value;Changed();}}
+ private double widgetScale=1,fontScale=1;private bool compactMode,rainReminder=true;
+ /// <summary>Overall widget size, 75%–150%.</summary>
+ public double WidgetScale {get=>widgetScale;set{value=Math.Round(Math.Clamp(double.IsFinite(value)?value:1,.75,1.5),2);if(Math.Abs(widgetScale-value)<.0001)return;widgetScale=value;Changed();}}
+ /// <summary>Text size relative to the layout, 85%–130%.</summary>
+ public double FontScale {get=>fontScale;set{value=Math.Round(Math.Clamp(double.IsFinite(value)?value:1,.85,1.3),2);if(Math.Abs(fontScale-value)<.0001)return;fontScale=value;Changed();}}
+ /// <summary>Compact mode keeps only city, current weather, rain reminder and status.</summary>
+ public bool CompactMode {get=>compactMode;set{if(compactMode==value)return;compactMode=value;Changed();}}
+ public bool RainReminder {get=>rainReminder;set{if(rainReminder==value)return;rainReminder=value;Changed();}}
  public WidgetPlacement? Placement {get;set;}
  public bool WidgetHidden {get;set;}
+ public bool OnboardingCompleted {get;set;}
+ public bool SystemInfoConsent {get;set;}
  [System.Text.Json.Serialization.JsonIgnore] public string DesktopStatus {get;set;}="桌面嵌入尚未初始化";
  [System.Text.Json.Serialization.JsonIgnore] public string MaterialStatus {get;set;}="正在检测设置窗口材质…";
  public void SetDesktopStatus(string text){DesktopStatus=text;Changed(nameof(DesktopStatus));}
@@ -60,10 +70,11 @@ public sealed class SettingsModel : INotifyPropertyChanged
  public static string Folder=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"WeatherBeacon");
  public static SettingsModel Load()
  {
-  try {if(File.Exists(Path.Combine(Folder,"settings.json"))) return JsonSerializer.Deserialize<SettingsModel>(File.ReadAllText(Path.Combine(Folder,"settings.json")))??new();}catch{}
+  try {if(File.Exists(Path.Combine(Folder,"settings.json"))) return JsonSerializer.Deserialize<SettingsModel>(File.ReadAllText(Path.Combine(Folder,"settings.json")))??new();}catch(Exception ex){WeatherBeacon.Platform.AppLog.Error("Settings","设置文件无法读取，已使用默认设置",ex);}
   var s=new SettingsModel();try{if(File.Exists(Path.Combine(Folder,"city.json")))s.City=JsonSerializer.Deserialize<WeatherLocation>(File.ReadAllText(Path.Combine(Folder,"city.json")));}catch{}return s;
  }
- public void Save(){Directory.CreateDirectory(Folder);var path=Path.Combine(Folder,"settings.json");File.WriteAllText(path+".tmp",JsonSerializer.Serialize(this));File.Move(path+".tmp",path,true);}
+ public void Save(){try{SaveCore();}catch(Exception ex){WeatherBeacon.Platform.AppLog.Error("Settings","设置保存失败",ex);throw;}}
+ private void SaveCore(){Directory.CreateDirectory(Folder);var path=Path.Combine(Folder,"settings.json");File.WriteAllText(path+".tmp",JsonSerializer.Serialize(this));File.Move(path+".tmp",path,true);}
 }
 
 

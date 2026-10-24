@@ -20,13 +20,21 @@ internal static class Program
  {
   _=new Application();
   var output=Path.GetFullPath(args[0]);Directory.CreateDirectory(output);
+  foreach(var familyName in new[]{"Source Han Sans SC","Source Han Serif SC"})
+  {
+   var family=new FontFamily(new Uri("pack://application:,,,/WeatherBeacon;component/Assets/Fonts/"),"./#"+familyName);
+   var face=new Typeface(family,FontStyles.Normal,FontWeights.Normal,FontStretches.Normal);
+   if(!face.TryGetGlyphTypeface(out var glyph)||!glyph.FamilyNames.Values.Contains(familyName))throw new Exception("Embedded font did not resolve: "+familyName);
+   if(!glyph.CharacterToGlyphMap.ContainsKey('晴'))throw new Exception("Missing Chinese weather glyph");
+   Console.WriteLine("FONT PASS: "+familyName+" -> "+glyph.FontUri);
+  }
   var widget=new WidgetWindow();var content=(FrameworkElement)widget.Content;
   SetWidgetData(content,WeatherKind.Clear,true);
-  Render(content,(int)widget.Width,(int)widget.Height,Path.Combine(output,"widget-clear-day.png"));
+  Render(content,460,700,Path.Combine(output,"widget-clear-day.png"));
   SetWidgetData(content,WeatherKind.Clear,false);
-  Render(content,(int)widget.Width,(int)widget.Height,Path.Combine(output,"widget-clear-night.png"));
+  Render(content,460,700,Path.Combine(output,"widget-clear-night.png"));
   SetWidgetData(content,WeatherKind.Rain,false);
-  Render(content,(int)widget.Width,(int)widget.Height,Path.Combine(output,"widget-rain-night.png"));
+  Render(content,460,700,Path.Combine(output,"widget-rain-night.png"));
 
   if(args.Length>1 && args[1]=="glass-only"){Console.WriteLine("PASS: glass layout rendered in day, night and rain states.");return;}
   var panel=new WrapPanel{Width=720,Background=new SolidColorBrush(Color.FromRgb(17,34,49))};

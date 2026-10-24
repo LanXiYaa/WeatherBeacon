@@ -1,0 +1,6 @@
+Source Han Sans SC Regular / Medium: Adobe source-han-sans release branch, OTF/SimplifiedChinese.
+https://github.com/adobe-fonts/source-han-sans/tree/release/OTF/SimplifiedChinese
+Source Han Serif SC Regular: Adobe source-han-serif release branch, OTF/SimplifiedChinese.
+https://github.com/adobe-fonts/source-han-serif/tree/release/OTF/SimplifiedChinese
+Downloaded 2026-10-24. Unmodified OTF fonts embedded as WPF resources.
+SIL Open Font License 1.1; accompanying original license files must be distributed.

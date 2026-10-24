@@ -21,7 +21,7 @@ public sealed class AlertDelivery
    if(File.Exists(path))ledger=JsonSerializer.Deserialize<Dictionary<string,Dictionary<string,string>>>(File.ReadAllText(path))??throw new InvalidDataException();
    if(ledger.Any(p=>p.Value is null))throw new InvalidDataException();
   }
-  catch{readable=false;Status="预警去重记录无法读取，已暂停真实通知以避免重复推送；请检查配置目录";}
+  catch(Exception ex){WeatherBeacon.Platform.AppLog.Warn("Alerts","预警去重记录无法读取",ex);readable=false;Status="预警去重记录无法读取，已暂停真实通知以避免重复推送；请检查配置目录";}
  }
  private void Save()
  {
@@ -72,6 +72,6 @@ public sealed class AlertDelivery
     Status="预警已提交到 Windows；实际横幅受系统设置控制";
    }
   }
-  catch{Status="预警去重记录保存失败，已停止本次通知；请检查配置目录写入权限";}
+  catch(Exception ex){WeatherBeacon.Platform.AppLog.Warn("Alerts","预警去重记录保存失败",ex);Status="预警去重记录保存失败，已停止本次通知；请检查配置目录写入权限";}
  }
 }

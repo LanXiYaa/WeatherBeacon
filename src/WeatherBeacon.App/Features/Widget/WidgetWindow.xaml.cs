@@ -29,7 +29,7 @@ public partial class WidgetWindow : Window
  public WidgetWindow()
  {
   InitializeComponent();
-  DataContext=vm;vm.SetUnit(settings.Fahrenheit);
+  DataContext=vm;vm.SetUnit(settings.Fahrenheit);vm.SetRainEnabled(settings.RainReminder);
   notifications.Activated+=()=>{if(!Dispatcher.HasShutdownStarted)Dispatcher.BeginInvoke(new Action(OpenSettings));};
   notifications.StatusChanged+=()=>{if(!Dispatcher.HasShutdownStarted)Dispatcher.BeginInvoke(new Action(()=>settings.SetNotificationStatus(notifications.DetailedStatus)));};
   notifications.Initialize();
@@ -39,8 +39,8 @@ public partial class WidgetWindow : Window
   Scene.RenderFailed+=(_,_)=>{Scene.Visibility=Visibility.Collapsed;Scene.Effect=null;desktop.AnimationStatus="failed-static-fallback";desktop.Record("animation-failed-static-fallback");};
   SceneClip.SizeChanged+=(_,_)=>UpdateClip();
   var menu=new ContextMenu();var open=new MenuItem{Header="设置…"};open.Click+=(_,_)=>OpenSettings();menu.Items.Add(open);
-  var retry=new MenuItem{Header="立即刷新"};retry.Click+=async (_,_)=>await Refresh();menu.Items.Add(retry);ContextMenu=menu;
-  settings.PropertyChanged+=(_,e)=>{if(e.PropertyName is not nameof(SettingsModel.DesktopStatus) and not nameof(SettingsModel.MaterialStatus))ApplyAppearance();if(e.PropertyName==nameof(SettingsModel.Fahrenheit))vm.SetUnit(settings.Fahrenheit);if(e.PropertyName==nameof(SettingsModel.RefreshMinutes))refresh.Interval=TimeSpan.FromMinutes(settings.RefreshMinutes);};
+  var retry=new MenuItem{Header="立即刷新"};retry.Click+=async (_,_)=>{WeatherBeacon.Platform.AppLog.Info("Weather","手动刷新");await Refresh();};menu.Items.Add(retry);ContextMenu=menu;
+  settings.PropertyChanged+=(_,e)=>{if(e.PropertyName is not nameof(SettingsModel.DesktopStatus) and not nameof(SettingsModel.MaterialStatus))ApplyAppearance();if(e.PropertyName==nameof(SettingsModel.Fahrenheit))vm.SetUnit(settings.Fahrenheit);if(e.PropertyName==nameof(SettingsModel.RefreshMinutes))refresh.Interval=TimeSpan.FromMinutes(settings.RefreshMinutes);if(e.PropertyName==nameof(SettingsModel.RainReminder))vm.SetRainEnabled(settings.RainReminder);if(e.PropertyName is nameof(SettingsModel.WidgetScale) or nameof(SettingsModel.FontScale) or nameof(SettingsModel.CompactMode)){ApplyLayout(settings.WidgetScale,settings.FontScale,settings.CompactMode);SchedulePlacementClamp();}};
   desktop.StatusChanged+=text=>settings.SetDesktopStatus(text);
   desktop.DisplayChanged+=RestoreForDisplayChange;
   clock.Tick+=(_,_)=>{vm.AlignHours(DateTimeOffset.Now);UpdateDayNight();};
@@ -76,7 +76,8 @@ public partial class WidgetWindow : Window
   _=Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle,new Action(()=>{desktop.AnimationFrames=Scene.RenderedFrames;desktop.AnimationStatus=Scene.RenderFailure is null?$"initialized; frames={Scene.RenderedFrames}; running={Scene.IsAnimating}":"failed-static-fallback";desktop.Record("animation-startup-check");}));
   if(visibilityMenu!=null)visibilityMenu.Text="隐藏小组件";
   if(Environment.GetCommandLineArgs().Contains("-ToastActivated"))OpenSettings();
-  if(settings.City is null){if(!App.IsAutostart)OpenSettings();}else await Refresh();
+  if(!settings.OnboardingCompleted&&!App.IsAutostart)OpenSettings();
+  if(settings.City is not null)await Refresh();
  }
 
  private void CreateTray()
@@ -110,7 +111,7 @@ public partial class WidgetWindow : Window
  {
   if(settingsWindow is null)
   {
-   settingsWindow=new(settings,provider,async ()=>await Refresh(),ResetPosition,notifications,SetWeatherOverride);
+   settingsWindow=new(settings,provider,async ()=>await Refresh(),ResetPosition,notifications,SetWeatherOverride,offerOnboarding:true,weatherStatus:()=>vm.Status);
    settingsWindow.Closed+=(_,_)=>{settingsWindow=null;UpdateAnimationActivity();};
    settingsWindow.Show();
   }
@@ -140,10 +141,30 @@ public partial class WidgetWindow : Window
  private void ApplyAppearance()
  {
   Opacity=settings.Opacity;
+  ApplyLayout(settings.WidgetScale,settings.FontScale,settings.CompactMode);
   Shell.CornerRadius=new CornerRadius(settings.Radius);
   Scene.Animated=settings.Animations;
   UpdateClip();UpdateDayNight();UpdateCursor();
   UpdateAnimationActivity();
+ }
+
+ private (double Scale,double Font,bool Compact)? layout;
+ /// <summary>
+ /// Size, text scale and compact mode. The whole card is drawn at its design size and scaled as one piece,
+ /// so radii, strokes and spacing stay proportional; text sizes live in resources so templates follow the font scale.
+ /// </summary>
+ public void ApplyLayout(double scale,double fontScale,bool compact)
+ {
+  if(layout==(scale,fontScale,compact))return;layout=(scale,fontScale,compact);
+  Shell.LayoutTransform=Math.Abs(scale-1)<.001?Transform.Identity:new ScaleTransform(scale,scale);
+  Shell.Width=compact?320:460;
+  foreach(var (key,size) in new[]{("F10",10d),("F11",11d),("F12",12d),("F13",13d),("F14",14d)})Resources[key]=Math.Round(size*fontScale,1);
+  Resources["FTemp"]=Math.Round((compact?56:72)*fontScale,1);
+  var full=compact?Visibility.Collapsed:Visibility.Visible;
+  HourlyCard.Visibility=full;DailyCard.Visibility=full;Brand.Visibility=full;
+  CurrentWeatherIcon.Width=CurrentWeatherIcon.Height=compact?84:108;
+  CurrentRow.MinHeight=compact?96:124;
+  UpdateClip();
  }
 
  private void UpdateClip()

@@ -48,7 +48,7 @@ public sealed class DesktopHost : IDisposable
  [DllImport("user32.dll")]static extern bool UnhookWinEvent(nint hook);
  readonly DispatcherTimer timer=new(){Interval=TimeSpan.FromMilliseconds(250)};
  readonly List<nint> hooks=[];EventProc? callback;Window? window;nint host,handle;string last="";bool disposed;
- public static string LogFolder=>Path.Combine(AppContext.BaseDirectory,"logs");
+ public static string LogFolder=>AppLog.Folder;
  readonly string log=Path.Combine(LogFolder,$"desktop-{DateTime.Now:yyyyMMdd-HHmmss}-{Environment.ProcessId}.jsonl");
  public string Status{get;private set;}="桌面嵌入尚未初始化";
  public event Action<string>? StatusChanged;
@@ -57,7 +57,7 @@ public sealed class DesktopHost : IDisposable
  public bool IsAttached=>handle!=0&&IsWindow(host)&&GetParent(handle)==host&&(Style(handle)&0x40000000)!=0&&(Style(handle)&0x80000000)==0;
  public bool IsWindowAvailable=>handle!=0&&IsWindow(handle)&&IsWindowVisible(handle)&&!IsIconic(handle)&&!UserHidden;
  static string Class(nint h){var s=new StringBuilder(256);GetClassName(h,s,256);return s.ToString();}
- void SetStatus(string s){if(Status==s)return;Status=s;StatusChanged?.Invoke(s);}
+ void SetStatus(string s){if(Status==s)return;Status=s;AppLog.Info("Desktop",s);StatusChanged?.Invoke(s);}
  public void Record(string reason,int error=0)
  {
   var fg=GetForegroundWindow();var parent=GetParent(handle);
@@ -108,7 +108,7 @@ public sealed class DesktopHost : IDisposable
   GetWindowRect(handle,out var r);SetParent(handle,0);SetStyle(handle,(Style(handle)&~0x40000000L)|0x80000000L);host=0;
   var work=System.Windows.Forms.Screen.PrimaryScreen!.WorkingArea;
   var dpi=window is null?1:System.Windows.Media.VisualTreeHelper.GetDpi(window).DpiScaleX;
-  int width=(int)((window?.Width??420)*dpi),height=(int)((window?.Height??430)*dpi);
+  int width=(int)((window is {ActualWidth:>0}?window.ActualWidth:420)*dpi),height=(int)((window is {ActualHeight:>0}?window.ActualHeight:430)*dpi);
   SetWindowPos(handle,0,Math.Max(work.Left,work.Right-width-24),Math.Max(work.Top,work.Top+24),width,height,0x0034);
   ShowWindow(handle,4);
  }

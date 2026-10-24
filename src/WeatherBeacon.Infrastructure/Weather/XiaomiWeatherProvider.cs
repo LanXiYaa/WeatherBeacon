@@ -44,7 +44,7 @@ public sealed class XiaomiWeatherProvider : IWeatherProvider
         {
             var start = DateTimeOffset.Parse(S(hw,"pubTime"), CultureInfo.InvariantCulture);
             var temperatures = h.GetProperty("temperature").GetProperty("value");
-            for (int i=0; i<codes.GetArrayLength(); i++) hours.Add(new(start.AddHours(i), i < temperatures.GetArrayLength() ? N(temperatures[i].ToString()) : null, Kind(codes[i].ToString())));
+            for (int i=0; i<codes.GetArrayLength(); i++) hours.Add(new(start.AddHours(i), i < temperatures.GetArrayLength() ? N(temperatures[i].ToString()) : null, Kind(codes[i].ToString()), CodeLabel(codes[i].ToString())));
         }
         List<DailyWeather> days = [];
         if (root.TryGetProperty("forecastDaily", out var d))

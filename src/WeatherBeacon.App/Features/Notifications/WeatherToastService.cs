@@ -32,7 +32,7 @@ public sealed class WeatherToastService
    }
    return true;
   }
-  catch(Exception ex){AvailabilityStatus=$"Windows 通知注册失败（0x{ex.HResult:X8}）：{ex.Message}";StatusChanged?.Invoke();return false;}
+  catch(Exception ex){WeatherBeacon.Platform.AppLog.Warn("Toast","Windows 通知注册失败",ex);AvailabilityStatus=$"Windows 通知注册失败（0x{ex.HResult:X8}）：{ex.Message}";StatusChanged?.Invoke();return false;}
  }
  private void HandleActivation()=>Activated?.Invoke();
  public bool CheckAvailability()
@@ -98,12 +98,12 @@ public sealed class WeatherToastService
    ToastNotificationManager.CreateToastNotifier(ToastRegistration.AppId).Show(toast);
    SetStatus("已提交 Windows。通知中心保留消息；横幅显示由系统通知和勿扰设置决定。");return true;
   }
-  catch(Exception ex){SetStatus($"通知发送失败（0x{ex.HResult:X8}）：{ex.Message}");return false;}
+  catch(Exception ex){WeatherBeacon.Platform.AppLog.Warn("Toast","通知发送失败",ex);SetStatus($"通知发送失败（0x{ex.HResult:X8}）：{ex.Message}");return false;}
  }
  public bool Remove(string cityId,string slot)
  {
   if(!Initialize())return false;
   try{ToastNotificationManager.History.Remove(TagFor(cityId,slot),"weather",ToastRegistration.AppId);return true;}
-  catch(Exception ex){SetStatus($"旧通知清除失败（0x{ex.HResult:X8}），下次刷新重试");return false;}
+  catch(Exception ex){WeatherBeacon.Platform.AppLog.Warn("Toast","旧通知清除失败",ex);SetStatus($"旧通知清除失败（0x{ex.HResult:X8}），下次刷新重试");return false;}
  }
 }

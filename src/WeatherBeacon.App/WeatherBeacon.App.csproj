@@ -2,6 +2,7 @@
   <PropertyGroup><AssemblyName>WeatherBeacon</AssemblyName><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms></PropertyGroup>
   <PropertyGroup><ApplicationIcon>Assets\WeatherBeacon.ico</ApplicationIcon></PropertyGroup><ItemGroup><Resource Include="Assets\WeatherBeacon.ico" /><Resource Include="Assets\WeatherBeacon.png" /></ItemGroup><ItemGroup><ProjectReference Include="..\WeatherBeacon.Infrastructure\WeatherBeacon.Infrastructure.csproj" /></ItemGroup>
 <ItemGroup><PackageReference Include="CommunityToolkit.WinUI.Notifications" Version="7.1.2" /></ItemGroup>
-<ItemGroup><Using Remove="System.Windows.Forms"/><Using Remove="System.Drawing"/></ItemGroup></Project>
+<ItemGroup><Using Remove="System.Windows.Forms"/><Using Remove="System.Drawing"/></ItemGroup><ItemGroup><Resource Include="Assets\Fonts\*.otf"/><Content Include="Assets\Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/></ItemGroup>
+</Project>
 
 

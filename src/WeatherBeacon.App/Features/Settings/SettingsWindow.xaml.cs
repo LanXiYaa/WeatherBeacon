@@ -12,28 +12,88 @@ public partial class SettingsWindow : Window
  private readonly CancellationTokenSource lifetime=new();
  private readonly WeatherBeacon.Features.Notifications.WeatherToastService notifications;
  private readonly Action<WeatherBeacon.Features.Developer.WeatherOverride?> setOverride;
+ private readonly Func<string?> weatherStatus;
  private bool ready;private DateTimeOffset lastDebugToast=DateTimeOffset.MinValue;
- public SettingsWindow(SettingsModel s,XiaomiWeatherProvider p,Action cityChanged,Action resetPosition,WeatherBeacon.Features.Notifications.WeatherToastService? notifications=null,Action<WeatherBeacon.Features.Developer.WeatherOverride?>? setOverride=null)
+ public SettingsWindow(SettingsModel s,XiaomiWeatherProvider p,Action cityChanged,Action resetPosition,WeatherBeacon.Features.Notifications.WeatherToastService? notifications=null,Action<WeatherBeacon.Features.Developer.WeatherOverride?>? setOverride=null,bool offerOnboarding=false,Func<string?>? weatherStatus=null)
  {
   InitializeComponent();settings=s;provider=p;changed=cityChanged;this.resetPosition=resetPosition;DataContext=s;CurrentCity.Text=s.City?.Name??"尚未选择城市";
-  this.notifications=notifications??new();this.setOverride=setOverride??(_=>{});
+  this.notifications=notifications??new();this.setOverride=setOverride??(_=>{});this.weatherStatus=weatherStatus??(()=>null);
   DebugWeather.ItemsSource=WeatherBeacon.Features.Developer.WeatherPreset.All;DebugWeather.SelectedIndex=0;DebugDaytime.SelectedIndex=0;
   DebugAlertType.ItemsSource=new[]{"暴雨","台风","雷电","高温","寒潮","大风","暴雪","大雾"};DebugAlertType.SelectedIndex=0;
   UpdateDeveloperNavigation();ready=true;
   RefreshOptions.ItemsSource=new[]{5,10,15,30,60};RefreshStartup();startupPoll.Tick+=(_,_)=>{RefreshStartup();if(settings.NotificationsEnabled){this.notifications.CheckAvailability();settings.SetNotificationStatus(this.notifications.DetailedStatus);}};startupPoll.Start();
   SourceInitialized+=(_,_)=>ApplyBackdrop();
-  Loaded+=(_,_)=>ShowPage(Navigation.SelectedIndex,false);
+  Loaded+=async (_,_)=>{ShowPage(Navigation.SelectedIndex,false);if(offerOnboarding&&!settings.OnboardingCompleted)await RunOnboarding();};
   settings.PropertyChanged+=SettingsChanged;
-  Closed+=(_,_)=>{startupPoll.Stop();lifetime.Cancel();settings.PropertyChanged-=SettingsChanged;};
+  Closed+=(_,_)=>{startupPoll.Stop();lifetime.Cancel();DeveloperConfirmation.Cancel();Wizard.Cancel();settings.PropertyChanged-=SettingsChanged;};
+ }
+ private bool onboardingPending;
+ private async void RestartOnboarding_Click(object sender,RoutedEventArgs e)=>await RunOnboarding();
+ private async Task RunOnboarding()
+ {
+  if(onboardingPending||developerConfirmationPending)return;
+  onboardingPending=true;SettingsContent.IsEnabled=false;
+  try{if(await Wizard.ShowAsync(settings,provider,CommitOnboarding,lifetime.Token)){CurrentCity.Text=settings.City?.Name;RefreshStartup();changed();Status.Text="使用引导已完成，设置已保存。";}}
+  finally{onboardingPending=false;SettingsContent.IsEnabled=true;if(!lifetime.IsCancellationRequested)Navigation.Focus();}
+ }
+ private string? CommitOnboarding(WeatherBeacon.Controls.OnboardingChoices choice)
+ {
+  var oldCity=settings.City;var oldMaterial=settings.Material;var oldConsent=settings.SystemInfoConsent;var oldCompleted=settings.OnboardingCompleted;
+  var oldStartup=WeatherBeacon.Platform.StartupService.Read().Enabled;bool startupChanged=false;
+  try
+  {
+   if(choice.Startup!=oldStartup){WeatherBeacon.Platform.StartupService.Set(choice.Startup);startupChanged=true;}
+   settings.City=choice.City;settings.Material=choice.Material;settings.SystemInfoConsent=choice.SystemInfoConsent;settings.OnboardingCompleted=true;settings.Save();WeatherBeacon.Platform.AppLog.Info("Onboarding",$"使用引导完成：城市 {choice.City.Name}，材质 {choice.Material}，自启 {choice.Startup}，系统信息授权 {choice.SystemInfoConsent}");return null;
+  }
+  catch(Exception ex)
+  {
+   settings.City=oldCity;settings.Material=oldMaterial;settings.SystemInfoConsent=oldConsent;settings.OnboardingCompleted=oldCompleted;
+   if(startupChanged){try{WeatherBeacon.Platform.StartupService.Set(oldStartup);}catch{return "设置保存失败，且自启状态恢复失败。请在任务管理器检查启动项后重试。";}}
+   WeatherBeacon.Platform.AppLog.Error("Onboarding","使用引导保存失败",ex);
+   return "未能完成设置："+ex.Message;
+  }
  }
  private void RefreshStartup(){var state=WeatherBeacon.Platform.StartupService.Read();StartupToggle.IsChecked=state.Enabled;StartupStatus.Text=state.Message;}
  private void Startup_Click(object sender,RoutedEventArgs e)
- {try{WeatherBeacon.Platform.StartupService.Set(StartupToggle.IsChecked==true);}catch(Exception ex){Status.Text=ex.Message;}RefreshStartup();}
+ {try{WeatherBeacon.Platform.StartupService.Set(StartupToggle.IsChecked==true);WeatherBeacon.Platform.AppLog.Info("Startup",StartupToggle.IsChecked==true?"已开启开机自启":"已关闭开机自启");}catch(Exception ex){WeatherBeacon.Platform.AppLog.Warn("Startup","开机自启设置失败",ex);Status.Text=ex.Message;}RefreshStartup();}
  private async void Locate_Click(object sender,RoutedEventArgs e)
  {
   LocateButton.IsEnabled=false;Status.Text="正在查询 IP 对应城市…";
   try{Results.ItemsSource=await provider.LocateAsync(lifetime.Token);Status.Text=Results.Items.Count>0?"定位完成，请确认并使用选中城市。":"未匹配到城市，请手动搜索。";if(Results.Items.Count>0)Results.SelectedIndex=0;}
-  catch{Status.Text="IP 定位失败，请稍后重试或手动搜索。";}finally{LocateButton.IsEnabled=true;}
+  catch(Exception ex){WeatherBeacon.Platform.AppLog.Warn("City","IP 定位失败",ex);Status.Text="IP 定位失败，请稍后重试或手动搜索。";}finally{LocateButton.IsEnabled=true;}
+ }
+ private async void CopyDiagnostics_Click(object sender,RoutedEventArgs e)
+ {
+  CopyDiagnosticsButton.IsEnabled=false;
+  try
+  {
+   var status=weatherStatus();var report=await Task.Run(()=>WeatherBeacon.Platform.Diagnostics.BuildReport(settings,status));
+   // The clipboard can be briefly locked by another app (clipboard managers, remote desktop); retry a few times.
+   for(int attempt=0;;attempt++)
+   {
+    try{Clipboard.SetText(report);break;}
+    catch(System.Runtime.InteropServices.COMException)when(attempt<5){await Task.Delay(80);}
+   }
+   WeatherBeacon.Platform.AppLog.Info("Diagnostics","诊断信息已复制到剪贴板");
+   Status.Text="诊断信息已复制，可直接粘贴到反馈中。";
+  }
+  catch(Exception ex){WeatherBeacon.Platform.AppLog.Warn("Diagnostics","复制诊断信息失败",ex);Status.Text="复制失败：剪贴板被占用，请稍后重试。";}
+  finally{CopyDiagnosticsButton.IsEnabled=true;}
+ }
+ private async void PackageLogs_Click(object sender,RoutedEventArgs e)
+ {
+  var dialog=new Microsoft.Win32.SaveFileDialog{Title="保存日志压缩包",Filter="ZIP 压缩包 (*.zip)|*.zip",DefaultExt=".zip",AddExtension=true,FileName=WeatherBeacon.Platform.Diagnostics.DefaultPackageName,InitialDirectory=Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)};
+  if(dialog.ShowDialog(this)!=true)return;
+  PackageLogsButton.IsEnabled=false;Status.Text="正在打包日志…";
+  try
+  {
+   var status=weatherStatus();var target=dialog.FileName;
+   await Task.Run(()=>WeatherBeacon.Platform.Diagnostics.PackageLogs(settings,target,status));
+   Status.Text="日志已打包："+System.IO.Path.GetFileName(target);
+   try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe",$"/select,\"{target}\""){UseShellExecute=true});}catch{}
+  }
+  catch(Exception ex){WeatherBeacon.Platform.AppLog.Warn("Diagnostics","打包日志失败",ex);Status.Text="打包失败："+ex.Message;}
+  finally{PackageLogsButton.IsEnabled=true;}
  }
  private void OpenDiagnostics(object sender,RoutedEventArgs e)
  {
@@ -85,7 +145,7 @@ public partial class SettingsWindow : Window
  {
   SearchButton.IsEnabled=false;Status.Text="正在搜索…";
   try{Results.ItemsSource=await provider.SearchAsync(Query.Text,lifetime.Token);Status.Text=Results.Items.Count==0?"未找到城市，请换一个名称。":"请选择匹配的城市。";}
-  catch{Status.Text="搜索失败，请检查网络后重试。";}finally{SearchButton.IsEnabled=true;}
+  catch(Exception ex){WeatherBeacon.Platform.AppLog.Warn("City","城市搜索失败",ex);Status.Text="搜索失败，请检查网络后重试。";}finally{SearchButton.IsEnabled=true;}
  }
  private void SelectCity_Click(object sender,RoutedEventArgs e)
  {
@@ -100,12 +160,22 @@ public partial class SettingsWindow : Window
   if(!settings.DeveloperMode&&Navigation.SelectedIndex==4)Navigation.SelectedIndex=2;
   DeveloperNavigation.Visibility=settings.DeveloperMode?Visibility.Visible:Visibility.Collapsed;
  }
- private void DeveloperToggle_Click(object sender,RoutedEventArgs e)
+ private bool developerConfirmationPending;
+ private async void DeveloperToggle_Click(object sender,RoutedEventArgs e)
  {
-  var enable=DeveloperToggle.IsChecked==true;
-  if(enable&&MessageBox.Show(this,"非专业人士最好不要打开该选项\n\n开启后可以覆盖天气显示和发送调试通知。是否继续？","开发者模式",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)!=MessageBoxResult.Yes)
-  {DeveloperToggle.IsChecked=false;return;}
-  settings.DeveloperMode=enable;if(!enable)setOverride(null);UpdateDeveloperNavigation();
+  if(developerConfirmationPending)return;
+  if(settings.DeveloperMode){settings.DeveloperMode=false;setOverride(null);UpdateDeveloperNavigation();return;}
+  developerConfirmationPending=true;SettingsContent.IsEnabled=false;
+  try
+  {
+   var accepted=await DeveloperConfirmation.ShowAsync(lifetime.Token);
+   if(accepted&&!lifetime.IsCancellationRequested){settings.DeveloperMode=true;Status.Text="开发者模式已开启。";}
+  }
+  finally
+  {
+   developerConfirmationPending=false;SettingsContent.IsEnabled=true;
+   UpdateDeveloperNavigation();if(!lifetime.IsCancellationRequested)DeveloperToggle.Focus();
+  }
  }
  private void DebugWeather_Changed(object sender,SelectionChangedEventArgs e){if(ready)ApplyDebugWeather();}
  private void ApplyDebugWeather_Click(object sender,RoutedEventArgs e)=>ApplyDebugWeather();
