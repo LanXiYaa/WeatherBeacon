@@ -87,3 +87,5 @@ docs/                              Design references and development records
 Include the application version, reproduction steps, expected behavior and actual behavior. For invisible-window issues, you may attach the matching diagnostic file from `logs`. For weather-service issues, include the selected city and approximate time.
 
 **WeatherBeacon 1.0.0.0 — Made with AI, improved through real needs and feedback.**
+
+The Art Deco interface pairs geometric detailing and ocean-blue/champagne colors with Windows Mica, Mica Alt and Acrylic. Weather information stays legible, with warning levels identified by both text and color.

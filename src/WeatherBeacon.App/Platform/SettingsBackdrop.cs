@@ -12,7 +12,7 @@ internal static class SettingsBackdrop
  public static SettingsBackdropResult Apply(Window window,int material)
  {
   var handle=new WindowInteropHelper(window).Handle;
-  var fallback=new SolidColorBrush(Color.FromRgb(23,23,28));
+  var fallback=new SolidColorBrush(Color.FromRgb(20,43,59));
   window.Background=fallback;
   if(handle==0)return Fallback(material,"设置窗口句柄尚未创建");
   var build=Environment.OSVersion.Version.Build;

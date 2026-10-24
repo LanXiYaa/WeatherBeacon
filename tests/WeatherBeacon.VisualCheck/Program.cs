@@ -104,6 +104,11 @@ internal static class Program
   if(settingsModel.Animations)throw new Exception("Animation toggle did not update the setting");
   animationToggle.IsChecked=true;Pump(TimeSpan.FromMilliseconds(120));
   Render((FrameworkElement)settings.Content,944,700,Path.Combine(output,"settings.png"));
+  foreach(var index in new[]{1,2,3})
+  {
+   navigation.SelectedIndex=index;Pump(TimeSpan.FromMilliseconds(350));
+   Render((FrameworkElement)settings.Content,944,700,Path.Combine(output,$"settings-page-{index}.png"));
+  }
   settings.Close();
 
   TestPlacementAndOcclusion();
@@ -114,7 +119,7 @@ internal static class Program
  {
   var scene=(WeatherScene)content.FindName("Scene");
   scene.IsDaytime=day;
-  content.DataContext=new{City="北京市 · 中国",Temperature=kind==WeatherKind.Rain?"18°":"19°",Description=XiaomiWeatherProvider.Label(kind),Kind=kind,Status="小米天气 · 更新于 19:00",Hours=Enumerable.Range(0,8).Select(i=>new ForecastItem((WeatherKind)(i%7+1),$"{19+i:00}:00","19°")).ToArray(),Days=Enumerable.Range(0,5).Select(i=>new ForecastItem((WeatherKind)(i%7+1),$"10.{23+i}","12° / 21°",i==0)).ToArray()};
+  content.DataContext=new{City="北京市 · 中国",Temperature=kind==WeatherKind.Rain?"18°":"19°",Description=XiaomiWeatherProvider.Label(kind),Kind=kind,Status="小米天气 · 更新于 19:00",Hours=Enumerable.Range(0,8).Select(i=>new ForecastItem((WeatherKind)(i%7+1),$"{19+i:00}:00","19°")).ToArray(),Days=Enumerable.Range(0,5).Select(i=>new ForecastItem((WeatherKind)(i%7+1),$"10.{23+i}","12° / 21°",i==0,XiaomiWeatherProvider.Label((WeatherKind)(i%7+1)))).ToArray()};
  }
  static string Hash(string path)=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
  static IEnumerable<DependencyObject> Descendants(DependencyObject root)
