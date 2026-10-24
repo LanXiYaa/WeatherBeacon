@@ -13,6 +13,8 @@ public sealed class WeatherScene : FrameworkElement
  public WeatherKind Kind{get=>(WeatherKind)GetValue(KindProperty);set=>SetValue(KindProperty,value);}
  public bool Animated{get=>(bool)GetValue(AnimatedProperty);set=>SetValue(AnimatedProperty,value);}
  public bool IsDaytime{get=>(bool)GetValue(IsDaytimeProperty);set=>SetValue(IsDaytimeProperty,value);}
+ public static readonly DependencyProperty RainIntensityProperty=DependencyProperty.Register(nameof(RainIntensity),typeof(double),typeof(WeatherScene),new FrameworkPropertyMetadata(1d,FrameworkPropertyMetadataOptions.AffectsRender));
+ public double RainIntensity{get=>(double)GetValue(RainIntensityProperty);set=>SetValue(RainIntensityProperty,Math.Clamp(value,.25,2));}
 
  private readonly DispatcherTimer timer=new(DispatcherPriority.Render){Interval=TimeSpan.FromMilliseconds(33)};
  private readonly Stopwatch clock=new();
@@ -182,9 +184,9 @@ public sealed class WeatherScene : FrameworkElement
  {
   DrawCloudBands(dc,w,h,t,StormCloud,RainUpper,1.15,storm?1.5:2.6);
   DrawCloudBands(dc,w,h,t+7,RainMiddle,RainLower,1.4,1.2,55);
-  for(int i=0;i<rain.Length;i++)
+  for(int i=0;i<Math.Min(rain.Length,(int)(rain.Length*RainIntensity));i++)
   {
-   var p=rain[i];var speed=p.Speed*(storm?1.25:1);var length=p.Length*(storm?1.2:1);
+   var p=rain[i];var speed=p.Speed*(storm?1.25:1)*Math.Sqrt(RainIntensity);var length=p.Length*(storm?1.2:1)*Math.Sqrt(RainIntensity);
    var x=Wrap(p.X*w+t*p.Drift*18,w+32)-16;
    var y=Wrap(p.Y*h+t*speed,h+50)-25;
    dc.DrawLine(RainPens[i%3],new(x,y),new(x-length*.22,y+length));

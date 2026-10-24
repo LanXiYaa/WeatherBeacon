@@ -14,6 +14,9 @@ public partial class WidgetWindow : Window
  private readonly XiaomiWeatherProvider provider=new();
  private readonly CancellationTokenSource lifetime=new();
  private readonly SettingsModel settings=SettingsModel.Load();
+ private readonly WeatherBeacon.Features.Notifications.WeatherToastService notifications=new();
+ private readonly WeatherBeacon.Features.Notifications.AlertDelivery alertDelivery=new(System.IO.Path.Combine(SettingsModel.Folder,"alert-delivery.json"));
+ private WeatherBeacon.Features.Developer.WeatherOverride? weatherOverride;
  private readonly DispatcherTimer clock=new(){Interval=TimeSpan.FromSeconds(10)};
  private readonly DispatcherTimer refresh=new(){Interval=TimeSpan.FromMinutes(15)};
  private readonly DispatcherTimer occlusion=new(){Interval=TimeSpan.FromMilliseconds(450)};
@@ -27,6 +30,10 @@ public partial class WidgetWindow : Window
  {
   InitializeComponent();
   DataContext=vm;vm.SetUnit(settings.Fahrenheit);
+  notifications.Activated+=()=>{if(!Dispatcher.HasShutdownStarted)Dispatcher.BeginInvoke(new Action(OpenSettings));};
+  notifications.StatusChanged+=()=>{if(!Dispatcher.HasShutdownStarted)Dispatcher.BeginInvoke(new Action(()=>settings.SetNotificationStatus(notifications.DetailedStatus)));};
+  notifications.Initialize();
+  settings.PropertyChanged+=NewSettingsChanged;
   System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged+=NetworkChanged;
   ShowInTaskbar=false;
   Scene.RenderFailed+=(_,_)=>{Scene.Visibility=Visibility.Collapsed;Scene.Effect=null;desktop.AnimationStatus="failed-static-fallback";desktop.Record("animation-failed-static-fallback");};
@@ -55,6 +62,7 @@ public partial class WidgetWindow : Window
   started=true;
   ApplyAppearance();
   CreateTray();
+  if(settings.NotificationsEnabled||Environment.GetCommandLineArgs().Contains("-ToastActivated"))notifications.CheckAvailability();
   refresh.Interval=TimeSpan.FromMinutes(settings.RefreshMinutes);clock.Start();refresh.Start();occlusion.Start();
   desktop.SavedHidden=settings.WidgetHidden;
   settings.WidgetHidden=false;desktop.UserHidden=false;
@@ -67,6 +75,7 @@ public partial class WidgetWindow : Window
   desktop.VerifyStartup();
   _=Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle,new Action(()=>{desktop.AnimationFrames=Scene.RenderedFrames;desktop.AnimationStatus=Scene.RenderFailure is null?$"initialized; frames={Scene.RenderedFrames}; running={Scene.IsAnimating}":"failed-static-fallback";desktop.Record("animation-startup-check");}));
   if(visibilityMenu!=null)visibilityMenu.Text="隐藏小组件";
+  if(Environment.GetCommandLineArgs().Contains("-ToastActivated"))OpenSettings();
   if(settings.City is null){if(!App.IsAutostart)OpenSettings();}else await Refresh();
  }
 
@@ -101,7 +110,7 @@ public partial class WidgetWindow : Window
  {
   if(settingsWindow is null)
   {
-   settingsWindow=new(settings,provider,async ()=>await Refresh(),ResetPosition);
+   settingsWindow=new(settings,provider,async ()=>await Refresh(),ResetPosition,notifications,SetWeatherOverride);
    settingsWindow.Closed+=(_,_)=>{settingsWindow=null;UpdateAnimationActivity();};
    settingsWindow.Show();
   }
@@ -113,7 +122,17 @@ public partial class WidgetWindow : Window
   if(settings.City is null || refreshing)return;
   if(lastAttemptCity==settings.City.ProviderCityId && DateTimeOffset.UtcNow-lastAttempt<TimeSpan.FromSeconds(15)){refresh.Interval=TimeSpan.FromSeconds(15);return;}
   lastAttemptCity=settings.City.ProviderCityId;lastAttempt=DateTimeOffset.UtcNow;refreshing=true;var city=settings.City;
-  try{await vm.RefreshAsync(provider,city,lifetime.Token);HoursScroll.ScrollToHorizontalOffset(0);UpdateDayNight();}
+  try
+  {
+   await vm.RefreshAsync(provider,city,lifetime.Token);HoursScroll.ScrollToHorizontalOffset(0);UpdateDayNight();
+   if(vm.LastRefreshSucceeded&&vm.LastSnapshot is {} snapshot&&settings.City==city)
+   {
+    settings.SetAlertDataStatus(snapshot.AlertStatus);
+    alertDelivery.Process(city.ProviderCityId,snapshot,settings.NotificationsEnabled,(WeatherBeacon.Core.Models.AlertLevel)settings.AlertThreshold,a=>notifications.Send(a,city.Name,false,city.ProviderCityId),slot=>notifications.Remove(city.ProviderCityId,slot));
+    settings.SetDeliveryStatus(alertDelivery.Status);
+   }
+   else if(!vm.LastRefreshSucceeded)settings.SetAlertDataStatus("天气刷新失败；无法确认最新预警，保留去重记录等待重试");
+  }
   finally{refreshing=false;failures=vm.LastRefreshSucceeded?0:Math.Min(failures+1,5);refresh.Stop();refresh.Interval=vm.LastRefreshSucceeded?TimeSpan.FromMinutes(settings.RefreshMinutes):TimeSpan.FromSeconds(Math.Min(300,30*Math.Pow(2,failures-1)));refresh.Start();}
   if(settings.City!=city)await Refresh();
  }
@@ -136,7 +155,7 @@ public partial class WidgetWindow : Window
  private void UpdateDayNight()
  {
   var now=DateTime.Now.TimeOfDay;var daytime=now>=TimeSpan.FromHours(6.5)&&now<TimeSpan.FromHours(18.5);
-  Scene.IsDaytime=daytime;CurrentWeatherIcon.IsDaytime=daytime;
+  Scene.IsDaytime=weatherOverride?.Daytime??daytime;CurrentWeatherIcon.IsDaytime=weatherOverride?.Daytime??daytime;
  }
 
  private void UpdateAnimationActivity()
@@ -215,6 +234,19 @@ public partial class WidgetWindow : Window
  }
 
  public void ShowFromSecondInstance(){settings.WidgetHidden=false;desktop.UserHidden=false;WindowState=WindowState.Normal;Show();Activate();if(visibilityMenu!=null)visibilityMenu.Text="隐藏小组件";UpdateAnimationActivity();}
+ private void SetWeatherOverride(WeatherBeacon.Features.Developer.WeatherOverride? value)
+ {
+  weatherOverride=settings.DeveloperMode?value:null;vm.SetOverride(weatherOverride);Scene.RainIntensity=weatherOverride?.RainIntensity??1;UpdateDayNight();UpdateAnimationActivity();
+ }
+ private void NewSettingsChanged(object? sender,System.ComponentModel.PropertyChangedEventArgs e)
+ {
+  if(e.PropertyName==nameof(SettingsModel.DeveloperMode)&&!settings.DeveloperMode)SetWeatherOverride(null);
+  if(e.PropertyName is nameof(SettingsModel.NotificationsEnabled) or nameof(SettingsModel.AlertThreshold) or nameof(SettingsModel.DeveloperMode))
+  {
+   try{settings.Save();}catch{settings.SetNotificationStatus("新设置保存失败，请检查配置目录权限");}
+   if(e.PropertyName==nameof(SettingsModel.NotificationsEnabled)&&settings.NotificationsEnabled){notifications.CheckAvailability();_=Refresh();}
+  }
+ }
  private void NetworkChanged(object? sender,System.Net.NetworkInformation.NetworkAvailabilityEventArgs e)
  {if(e.IsAvailable)Dispatcher.BeginInvoke(new Action(()=>{refresh.Stop();refresh.Interval=TimeSpan.FromSeconds(15);refresh.Start();}));}
  private void OnClosed(object? sender,EventArgs e)

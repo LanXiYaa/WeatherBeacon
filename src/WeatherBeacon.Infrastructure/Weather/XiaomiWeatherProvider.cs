@@ -54,7 +54,24 @@ public sealed class XiaomiWeatherProvider : IWeatherProvider
             var first = DateOnly.FromDateTime(DateTimeOffset.Parse(S(d,"pubTime"), CultureInfo.InvariantCulture).DateTime);
             for (int i=0; i<Math.Min(dailyCodes.GetArrayLength(), temps.GetArrayLength()); i++) days.Add(new(first.AddDays(i), N(S(temps[i],"to")), N(S(temps[i],"from")), Kind(S(dailyCodes[i],"from")), DailyLabel(S(dailyCodes[i],"from"),S(dailyCodes[i],"to"))));
         }
-        return new(city, updated, N(S(c.GetProperty("temperature"),"value")), CodeLabel(S(c,"weather")), kind, hours, days, []);
+        var alerts=ParseAlerts(root);
+        return new(city, updated, N(S(c.GetProperty("temperature"),"value")), CodeLabel(S(c,"weather")), kind, hours, days, alerts.Items, alerts.Complete, alerts.Status);
+    }
+    public static (IReadOnlyList<WeatherAlert> Items,bool Complete,string Status) ParseAlerts(JsonElement root)
+    {
+        if(!root.TryGetProperty("alerts",out var array)||array.ValueKind!=JsonValueKind.Array)
+            return ([],false,"小米未返回可识别的预警数组；无法确认当前是否有预警");
+        List<WeatherAlert> items=[];int skipped=0;
+        foreach(var a in array.EnumerateArray())
+        {
+            if(a.ValueKind!=JsonValueKind.Object){skipped++;continue;}
+            var level=S(a,"level") switch{"蓝色"=>AlertLevel.Blue,"黄色"=>AlertLevel.Yellow,"橙色"=>AlertLevel.Orange,"红色"=>AlertLevel.Red,_=>(AlertLevel?)null};
+            var id=S(a,"alertId");var type=S(a,"type");var title=S(a,"title");var detail=S(a,"detail");
+            if(level is null||string.IsNullOrWhiteSpace(id)||string.IsNullOrWhiteSpace(type)||string.IsNullOrWhiteSpace(title)||string.IsNullOrWhiteSpace(detail)||!DateTimeOffset.TryParse(S(a,"pubTime"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var published))
+            {skipped++;continue;}
+            items.Add(new(id,title,detail,level.Value,null,type,published));
+        }
+        return (items,skipped==0,skipped>0?$"读取 {items.Count} 条预警；{skipped} 条字段不支持，已跳过（不会据此判断解除）":items.Count==0?"小米当前返回空预警列表":$"小米当前返回 {items.Count} 条预警");
     }
     public async Task<IReadOnlyList<WeatherLocation>> LocateAsync(CancellationToken ct)
     {

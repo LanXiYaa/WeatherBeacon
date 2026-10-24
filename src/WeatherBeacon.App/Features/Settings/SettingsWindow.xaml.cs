@@ -10,10 +10,17 @@ public partial class SettingsWindow : Window
  private readonly SettingsModel settings;private readonly XiaomiWeatherProvider provider;private readonly Action changed;private readonly Action resetPosition;
  private readonly System.Windows.Threading.DispatcherTimer startupPoll=new(){Interval=TimeSpan.FromSeconds(2)};
  private readonly CancellationTokenSource lifetime=new();
- public SettingsWindow(SettingsModel s,XiaomiWeatherProvider p,Action cityChanged,Action resetPosition)
+ private readonly WeatherBeacon.Features.Notifications.WeatherToastService notifications;
+ private readonly Action<WeatherBeacon.Features.Developer.WeatherOverride?> setOverride;
+ private bool ready;private DateTimeOffset lastDebugToast=DateTimeOffset.MinValue;
+ public SettingsWindow(SettingsModel s,XiaomiWeatherProvider p,Action cityChanged,Action resetPosition,WeatherBeacon.Features.Notifications.WeatherToastService? notifications=null,Action<WeatherBeacon.Features.Developer.WeatherOverride?>? setOverride=null)
  {
   InitializeComponent();settings=s;provider=p;changed=cityChanged;this.resetPosition=resetPosition;DataContext=s;CurrentCity.Text=s.City?.Name??"尚未选择城市";
-  RefreshOptions.ItemsSource=new[]{5,10,15,30,60};RefreshStartup();startupPoll.Tick+=(_,_)=>RefreshStartup();startupPoll.Start();
+  this.notifications=notifications??new();this.setOverride=setOverride??(_=>{});
+  DebugWeather.ItemsSource=WeatherBeacon.Features.Developer.WeatherPreset.All;DebugWeather.SelectedIndex=0;DebugDaytime.SelectedIndex=0;
+  DebugAlertType.ItemsSource=new[]{"暴雨","台风","雷电","高温","寒潮","大风","暴雪","大雾"};DebugAlertType.SelectedIndex=0;
+  UpdateDeveloperNavigation();ready=true;
+  RefreshOptions.ItemsSource=new[]{5,10,15,30,60};RefreshStartup();startupPoll.Tick+=(_,_)=>{RefreshStartup();if(settings.NotificationsEnabled){this.notifications.CheckAvailability();settings.SetNotificationStatus(this.notifications.DetailedStatus);}};startupPoll.Start();
   SourceInitialized+=(_,_)=>ApplyBackdrop();
   Loaded+=(_,_)=>ShowPage(Navigation.SelectedIndex,false);
   settings.PropertyChanged+=SettingsChanged;
@@ -35,12 +42,12 @@ public partial class SettingsWindow : Window
  }
  private void Navigate(object sender,System.Windows.Controls.SelectionChangedEventArgs e)
  {
-  if(AppearancePage is null || WeatherPage is null || AboutPage is null)return;
+  if(AppearancePage is null || WeatherPage is null || AboutPage is null || NotificationsPage is null || DeveloperPage is null)return;
   ShowPage(Navigation.SelectedIndex,true);
  }
  private void ShowPage(int index,bool animate)
  {
-  var pages=new FrameworkElement[]{AppearancePage,WeatherPage,AboutPage};
+  var pages=new FrameworkElement[]{AppearancePage,WeatherPage,AboutPage,NotificationsPage,DeveloperPage};
   if(index<0||index>=pages.Length)return;
   var target=pages[index];
   foreach(var page in pages)
@@ -61,6 +68,8 @@ public partial class SettingsWindow : Window
  private void SettingsChanged(object? sender,System.ComponentModel.PropertyChangedEventArgs e)
  {
   if(e.PropertyName==nameof(SettingsModel.Material))ApplyBackdrop();
+  if(e.PropertyName==nameof(SettingsModel.DeveloperMode))UpdateDeveloperNavigation();
+  if(e.PropertyName==nameof(SettingsModel.NotificationsEnabled)&&!settings.NotificationsEnabled)settings.SetNotificationStatus("通知已关闭，真实和调试预警均不发送");
  }
  private void ApplyBackdrop()
  {
@@ -85,6 +94,41 @@ public partial class SettingsWindow : Window
  }
  private void Save_Click(object sender,RoutedEventArgs e)
  {try{settings.Save();Status.Text="设置已保存。";}catch{Status.Text="保存失败，请检查本地目录权限。";}}
+ private void UpdateDeveloperNavigation()
+ {
+  DeveloperToggle.IsChecked=settings.DeveloperMode;
+  if(!settings.DeveloperMode&&Navigation.SelectedIndex==4)Navigation.SelectedIndex=2;
+  DeveloperNavigation.Visibility=settings.DeveloperMode?Visibility.Visible:Visibility.Collapsed;
+ }
+ private void DeveloperToggle_Click(object sender,RoutedEventArgs e)
+ {
+  var enable=DeveloperToggle.IsChecked==true;
+  if(enable&&MessageBox.Show(this,"非专业人士最好不要打开该选项\n\n开启后可以覆盖天气显示和发送调试通知。是否继续？","开发者模式",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)!=MessageBoxResult.Yes)
+  {DeveloperToggle.IsChecked=false;return;}
+  settings.DeveloperMode=enable;if(!enable)setOverride(null);UpdateDeveloperNavigation();
+ }
+ private void DebugWeather_Changed(object sender,SelectionChangedEventArgs e){if(ready)ApplyDebugWeather();}
+ private void ApplyDebugWeather_Click(object sender,RoutedEventArgs e)=>ApplyDebugWeather();
+ private void ApplyDebugWeather()
+ {
+  if(!settings.DeveloperMode||DebugWeather.SelectedItem is not WeatherBeacon.Features.Developer.WeatherPreset preset||DebugDaytime.SelectedIndex<0)return;
+  setOverride(new(preset.Name,preset.Kind,DebugDaytime.SelectedIndex==0,preset.RainIntensity));Status.Text="天气预览中；温度与预报仍为真实数据。";
+ }
+ private void RestoreWeather_Click(object sender,RoutedEventArgs e){setOverride(null);Status.Text="已恢复真实天气。";}
+ private void DebugAlert_Click(object sender,RoutedEventArgs e)
+ {
+  if(!settings.DeveloperMode)return;
+  if(!settings.NotificationsEnabled){Status.Text="请先在通知页开启通知总开关。";return;}
+  if(DateTimeOffset.UtcNow-lastDebugToast<TimeSpan.FromSeconds(2)){Status.Text="请稍候再发送测试通知。";return;}
+  lastDebugToast=DateTimeOffset.UtcNow;
+  var level=(AlertLevel)int.Parse(((Button)sender).Tag.ToString()!);var type=DebugAlertType.SelectedItem?.ToString()??"暴雨";
+  var alert=new WeatherAlert(Guid.NewGuid().ToString(),type+"调试预警","这是 WeatherBeacon 功能测试，不是真实气象预警。",level,null,type,DateTimeOffset.Now);
+  notifications.Send(alert,settings.City?.Name??"测试城市",true);settings.SetNotificationStatus(notifications.DetailedStatus);Status.Text=notifications.Status;
+ }
+ private void OpenNotificationSettings_Click(object sender,RoutedEventArgs e)
+ {
+  try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:notifications"){UseShellExecute=true});}catch{Status.Text="无法打开系统设置，请手动进入 Windows 设置 → 系统 → 通知。";}
+ }
 }
 
 

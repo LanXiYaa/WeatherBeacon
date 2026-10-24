@@ -19,10 +19,12 @@ WeatherBeacon brings current conditions, hourly forecasts and a five-day outlook
 - **System tray:** single-click to show or hide, double-click for settings, or right-click for visibility, settings and exit controls.
 - **Startup support:** launch at the current user's sign-in without administrator privileges or automatically opening settings.
 - **Single instance:** another launch activates the existing instance.
+- **Weather alerts:** actual Xiaomi alerts delivered through Windows Toast, with a blue/yellow/orange/red threshold and persistent deduplication. Disabled by default; enable on the Notifications page.
+- **Developer previews:** confirm activation on the About page to preview weather and day/night scenes, restore real conditions, and send clearly labeled test notifications.
 
 ## Download and run
 
-This release provides a **self-contained Windows x64 build**, targeting 64-bit Windows 10 / 11 devices. A separate .NET runtime installation is not required.
+This release provides a **self-contained Windows x64 build**, targeting 64-bit Windows 10 version 1903 or later / Windows 11 devices. A separate .NET runtime installation is not required.
 
 1. Download and extract the complete release package.
 2. Run `WeatherBeacon.exe`.
@@ -45,12 +47,20 @@ Weather and city search use Xiaomi weather services. Clicking IP lookup contacts
 
 Settings are stored in `%LOCALAPPDATA%\WeatherBeacon\settings.json`. Existing desktop diagnostics are written locally to the executable's `logs` directory and include window state, placement, display layout and animation status. Review files before sharing them for troubleshooting.
 
-This release does not collect system hardware inventories or automatically upload diagnostic logs.
+Alert fingerprints are stored by city and alert type in alert-delivery.json alongside settings; test notifications never modify that ledger. A fixed AppUserModelID, WeatherBeacon.Desktop, matches a current-user Start menu shortcut, application name, icon and COM activator. Administrator privileges are not required. Starting from a new location updates the shortcut and activation command while preserving notification identity. Legacy path-based identities may remain in Windows.
+
+Updates replace the same notification. Resolved alerts, or alerts downgraded below the selected threshold, remove the old notification. Toasts use a two-line summary, native publication time, an acknowledgment button and body activation. Test titles begin with [调试]. Notification Center retention follows Windows policy; test notifications no longer expire after five minutes.
+
+Weather overrides are in-memory only. Restore, disabling developer mode, or restarting returns to real weather. Test Toasts respect the master notification switch but bypass the level threshold.
+
+This release does not collect system hardware inventories or automatically upload diagnostic logs. See the [original stage-four notes](docs/STAGE4_COMMIT.md) and the [latest notification fix and verification report](docs/TOAST_FIX_COMMIT.md).
 
 ## Current limitations
 
 - Verified minute-level precipitation data is unavailable. There is **no rain-start or rain-stop countdown**, and hourly forecasts are not converted into minute estimates.
-- Weather alert notifications, a first-run wizard and developer mode are not included.
+- A first-run wizard and system hardware inventory logging are not included.
+- Alerts are polled with weather refreshes rather than delivered as a real-time feed. Unsupported or missing Xiaomi alert fields are reported explicitly.
+- Windows notification permission does not guarantee a visible banner. Focus Assist / Do Not Disturb may send notifications only to Notification Center.
 - Service availability and coverage depend on third-party endpoints. Offline sessions cannot receive new forecasts, and weather snapshots are not retained after exit.
 - Startup-state handling, materials and multi-monitor DPI behavior can vary across Windows versions. Real sign-in startup, network recovery and all hardware combinations have not been comprehensively validated.
 

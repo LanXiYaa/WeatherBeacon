@@ -15,6 +15,15 @@ public sealed class WidgetViewModel : INotifyPropertyChanged
  public string RainHint=>"暂无分钟级降水预报";
  public string Icon=>Glyph(Kind);
  public WeatherKind Kind{get;private set;}
+ public WeatherSnapshot? LastSnapshot=>last;
+ private WeatherBeacon.Features.Developer.WeatherOverride? weatherOverride;
+ public bool IsDebugging=>weatherOverride is not null;
+ public void SetOverride(WeatherBeacon.Features.Developer.WeatherOverride? value)
+ {
+  weatherOverride=value;
+  if(last is not null)Apply(last);
+  else{Kind=value?.Kind??WeatherKind.Unknown;Description=value?.Name??"请选择城市";Changed(null);}
+ }
  private WeatherSnapshot? last;private bool fahrenheit;
  public bool LastRefreshSucceeded{get;private set;}
  public ObservableCollection<ForecastItem> Hours{get;}=[];
@@ -31,7 +40,7 @@ public sealed class WidgetViewModel : INotifyPropertyChanged
  }
  private void Apply(WeatherSnapshot data)
  {
-  Temperature=Temp(data.Temperature);Description=data.Description;City=data.City;Kind=data.Kind;
+  Temperature=Temp(data.Temperature);Description=weatherOverride?.Name??data.Description;City=data.City;Kind=weatherOverride?.Kind??data.Kind;
   last=data;AlignHours(DateTimeOffset.Now);Days.Clear();
   foreach(var d in data.Days.Take(5))Days.Add(new(d.Kind,d.Date.ToString("MM.dd"),$"{Temp(d.Low)} / {Temp(d.High)}",d.Date==DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8)),string.IsNullOrEmpty(d.Description)?XiaomiWeatherProvider.Label(d.Kind):d.Description));
   Changed(null);

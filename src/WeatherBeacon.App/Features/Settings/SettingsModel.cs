@@ -28,6 +28,17 @@ public sealed class WidgetPlacement
 public sealed class SettingsModel : INotifyPropertyChanged
 {
  public event PropertyChangedEventHandler? PropertyChanged;
+ private bool notificationsEnabled,developerMode;private int alertThreshold=1;
+ public bool NotificationsEnabled{get=>notificationsEnabled;set{if(notificationsEnabled==value)return;notificationsEnabled=value;Changed();}}
+ public int AlertThreshold{get=>alertThreshold;set{value=Math.Clamp(value,0,3);if(alertThreshold==value)return;alertThreshold=value;Changed();Changed(nameof(AlertThresholdLabel));}}
+ [System.Text.Json.Serialization.JsonIgnore] public string AlertThresholdLabel=>new[]{"蓝色及以上","黄色及以上","橙色及以上","仅红色"}[AlertThreshold];
+ public bool DeveloperMode{get=>developerMode;set{if(developerMode==value)return;developerMode=value;Changed();}}
+ [System.Text.Json.Serialization.JsonIgnore] public string NotificationStatus{get;private set;}="通知默认关闭";
+ [System.Text.Json.Serialization.JsonIgnore] public string AlertDataStatus{get;private set;}="等待当前城市天气刷新";
+ [System.Text.Json.Serialization.JsonIgnore] public string DeliveryStatus{get;private set;}="尚未发送预警";
+ public void SetNotificationStatus(string value){NotificationStatus=value;Changed(nameof(NotificationStatus));}
+ public void SetAlertDataStatus(string value){AlertDataStatus=value;Changed(nameof(AlertDataStatus));}
+ public void SetDeliveryStatus(string value){DeliveryStatus=value;Changed(nameof(DeliveryStatus));}
  private int refreshMinutes=15;private bool fahrenheit;
  public int RefreshMinutes{get=>refreshMinutes;set{if(value is not (5 or 10 or 15 or 30 or 60))value=15;if(refreshMinutes==value)return;refreshMinutes=value;Changed();}}
  public bool Fahrenheit{get=>fahrenheit;set{if(fahrenheit==value)return;fahrenheit=value;Changed();}}
