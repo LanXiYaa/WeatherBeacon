@@ -1,7 +1,10 @@
-﻿# Builds WeatherBeacon: runs the UI/feature checks, publishes win-x64 (self-contained) and compiles the Setup installer.
-# Usage: double-click scripts\Build-Release.cmd, or: powershell -ExecutionPolicy Bypass -File scripts\Build-Release.ps1 [-Name <label>]
+﻿# Builds WeatherBeacon: runs the UI/feature checks, then publishes (self-contained) and packages x86, x64 and ARM64 installers.
+# Usage: double-click scripts\Build-Release.cmd, or: powershell -ExecutionPolicy Bypass -File scripts\Build-Release.ps1 [-Name <label>] [-Arch x64,arm64]
 # Output: ..\release\<Name>-win-x64, ..\release\<Name>-setup, ..\release\<Name>-build.log; check screenshots in .tools\<Name>-*
-param([string]$Name = ('build-' + (Get-Date -Format 'yyyyMMdd-HHmm')))
+param(
+    [string]$Name = ('build-' + (Get-Date -Format 'yyyyMMdd-HHmm')),
+    [ValidateSet('x86','x64','arm64')][string[]]$Arch = @('x86','x64','arm64')
+)
 $ErrorActionPreference = 'Stop'
 $source = Split-Path $PSScriptRoot -Parent
 $release = Join-Path (Split-Path $source -Parent) 'release'
@@ -25,15 +28,17 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "$($check.Title) failed ($LASTEXITCODE)." }
     }
 
-    Write-Output '== Publish win-x64'
-    $publish = Join-Path $release "$Name-win-x64"
-    if (Test-Path -LiteralPath $publish) { Remove-Item -LiteralPath $publish -Recurse -Force }
-    & $dotnet publish src/WeatherBeacon.App/WeatherBeacon.App.csproj -c Release -r win-x64 --self-contained true -o $publish
-    if ($LASTEXITCODE -ne 0) { throw "Publish failed ($LASTEXITCODE)." }
-
-    Write-Output '== Setup'
+    # One self-contained publish and one installer per architecture; all installers go to <Name>-setup.
     $setup = Join-Path $release "$Name-setup"
-    & (Join-Path $source 'installer/Build-Setup.ps1') -PublishDir $publish -OutputDir $setup
+    foreach ($a in $Arch) {
+        Write-Output "== Publish win-$a"
+        $publish = Join-Path $release "$Name-win-$a"
+        if (Test-Path -LiteralPath $publish) { Remove-Item -LiteralPath $publish -Recurse -Force }
+        & $dotnet publish src/WeatherBeacon.App/WeatherBeacon.App.csproj -c Release -r "win-$a" --self-contained true -o $publish
+        if ($LASTEXITCODE -ne 0) { throw "Publish win-$a failed ($LASTEXITCODE)." }
+        Write-Output "== Setup $a"
+        & (Join-Path $source 'installer/Build-Setup.ps1') -PublishDir $publish -OutputDir $setup -Arch $a
+    }
     Write-Output 'BUILD-OK'
 }
 catch {

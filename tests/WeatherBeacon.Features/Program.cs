@@ -21,7 +21,8 @@ internal static class Program
   Logging(output);
   _=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
   Widget(output);
-  Console.WriteLine($"PASS features: {passed} checks (rain reminder, logging, diagnostics consent, log package, widget scale/font/compact).");
+  History(output);
+  Console.WriteLine($"PASS features: {passed} checks (rain reminder, logging, diagnostics consent, log package, widget scale/font/compact, weather history).");
  }
  static void Rain()
  {
@@ -99,6 +100,41 @@ internal static class Program
   shell.DataContext=hidden;var off=Render(widget,shell,1,1,false,Path.Combine(output,"widget-rain-off.png"));
   Check(off.Height<normal.Height,"rain banner collapses when off");
  }
+ static void History(string output)
+ {
+  // Store: one record per city date, unchanged refreshes do not rewrite, reload round-trips.
+  var file=Path.Combine(output,"history-test.json");if(File.Exists(file))File.Delete(file);
+  var store=new WeatherBeacon.Features.History.WeatherHistory(file);int changes=0;store.Changed+=()=>changes++;
+  var tz=TimeSpan.FromHours(8);var today=new DateOnly(2026,10,24);
+  WeatherSnapshot Snap(int hour,WeatherKind kind,string text)=>new("兰州 · 甘肃",new DateTimeOffset(2026,10,24,hour,0,0,tz),18,"多云",WeatherKind.Cloudy,[],[new DailyWeather(today,9,19,kind,text),new DailyWeather(today.AddDays(1),8,17,WeatherKind.Clear,"晴")],[]);
+  store.Record(Snap(9,WeatherKind.Cloudy,"多云"));store.Record(Snap(10,WeatherKind.Cloudy,"多云"));store.Record(Snap(20,WeatherKind.Rain,"多云转小雨"));
+  Check(changes==2&&store.Days.Count==1&&store.Days[today].Kind==WeatherKind.Rain&&store.Days[today].Description=="多云转小雨","history keeps last weather of the day, skips identical refreshes");
+  var reloaded=new WeatherBeacon.Features.History.WeatherHistory(file);
+  Check(reloaded.Days.TryGetValue(today,out var day)&&day.High==19&&day.City=="兰州 · 甘肃","history reloads from disk");
+  // Page: sample year, legend focus, reveal; rendered for review.
+  var model=new SettingsModel();
+  var window=new SettingsWindow(model,new WeatherBeacon.Infrastructure.Weather.XiaomiWeatherProvider(),()=>{},()=>{});
+  window.Show();Pump(300);
+  model.DeveloperMode=true;Pump(100);
+  ((Button)window.FindName("HistoryPreviewButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+  ((ListBox)window.FindName("Navigation")).SelectedIndex=4;Pump(1100);
+  var heatmap=(WeatherBeacon.Controls.WeatherHeatmap)window.FindName("Heatmap");
+  Check(((FrameworkElement)window.FindName("HistoryPage")).Visibility==Visibility.Visible&&heatmap.Reveal>.99&&heatmap.ActualWidth>500,"history page shows a revealed heatmap ("+heatmap.ActualWidth+")");
+  Check(((TextBlock)window.FindName("HistorySummary")).Text.StartsWith("已记录"),"summary counts sample days");
+  var content=(FrameworkElement)window.Content;
+  RenderWindow(content,Path.Combine(output,"history-page.png"));
+  heatmap.FocusOn(WeatherKind.Rain);Pump(400);RenderWindow(content,Path.Combine(output,"history-focus-rain.png"));
+  heatmap.FocusOn(null);Pump(400);
+  Check(heatmap.FocusLevel<.01,"legend focus fades back");
+  window.Close();
+ }
+ static void RenderWindow(FrameworkElement content,string path)
+ {
+  content.UpdateLayout();var bitmap=new RenderTargetBitmap((int)content.ActualWidth,(int)content.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(content);
+  var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using(var file=File.Create(path))encoder.Save(file);
+  Console.WriteLine("RENDER "+Path.GetFileName(path));
+ }
+ static void Pump(int milliseconds){var frame=new DispatcherFrame();var timer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(milliseconds)};timer.Tick+=(_,_)=>{timer.Stop();frame.Continue=false;};timer.Start();Dispatcher.PushFrame(frame);}
  static Size Render(WidgetWindow widget,FrameworkElement shell,double scale,double font,bool compact,string path)
  {
   widget.ApplyLayout(scale,font,compact);

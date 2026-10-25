@@ -20,12 +20,49 @@ public partial class SettingsWindow : Window
   this.notifications=notifications??new();this.setOverride=setOverride??(_=>{});this.weatherStatus=weatherStatus??(()=>null);
   DebugWeather.ItemsSource=WeatherBeacon.Features.Developer.WeatherPreset.All;DebugWeather.SelectedIndex=0;DebugDaytime.SelectedIndex=0;
   DebugAlertType.ItemsSource=new[]{"暴雨","台风","雷电","高温","寒潮","大风","暴雪","大雾"};DebugAlertType.SelectedIndex=0;
+  // One source tree builds x86, x64 and ARM64 installers; show the architecture this copy actually runs as.
+  AboutVersion.Text=AboutBuild.Text=$"1.0.0.0 · {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture switch{System.Runtime.InteropServices.Architecture.X86=>"x86",System.Runtime.InteropServices.Architecture.Arm64=>"ARM64",_=>"x64"}}";
+  BuildHistoryLegend();RefreshHistory();history.Changed+=HistoryChanged;
   UpdateDeveloperNavigation();ready=true;
   RefreshOptions.ItemsSource=new[]{5,10,15,30,60};RefreshStartup();startupPoll.Tick+=(_,_)=>{RefreshStartup();if(settings.NotificationsEnabled){this.notifications.CheckAvailability();settings.SetNotificationStatus(this.notifications.DetailedStatus);}};startupPoll.Start();
   SourceInitialized+=(_,_)=>ApplyBackdrop();
   Loaded+=async (_,_)=>{ShowPage(Navigation.SelectedIndex,false);if(offerOnboarding&&!settings.OnboardingCompleted)await RunOnboarding();};
   settings.PropertyChanged+=SettingsChanged;
-  Closed+=(_,_)=>{startupPoll.Stop();lifetime.Cancel();DeveloperConfirmation.Cancel();Wizard.Cancel();settings.PropertyChanged-=SettingsChanged;};
+  Closed+=(_,_)=>{history.Changed-=HistoryChanged;startupPoll.Stop();lifetime.Cancel();DeveloperConfirmation.Cancel();Wizard.Cancel();settings.PropertyChanged-=SettingsChanged;};
+ }
+ private readonly WeatherBeacon.Features.History.WeatherHistory history=WeatherBeacon.Features.History.WeatherHistory.Default;
+ private bool historyPreview;
+ private void HistoryChanged()=>Dispatcher.BeginInvoke(new Action(()=>{if(!historyPreview)RefreshHistory();}));
+ /// <summary>Fills the heatmap, the date range and a one-line summary of what kinds of days were recorded.</summary>
+ private void RefreshHistory(IReadOnlyDictionary<DateOnly,WeatherBeacon.Features.History.DayRecord>? records=null)
+ {
+  records??=history.Days;
+  var end=DateOnly.FromDateTime(DateTime.Today);var start=end.AddDays(-(WeatherBeacon.Controls.WeatherHeatmap.Weeks-1)*7-((int)end.DayOfWeek+6)%7);
+  Heatmap.Fahrenheit=settings.Fahrenheit;Heatmap.EndDate=end;Heatmap.Records=records;
+  var inRange=records.Values.Where(r=>r.Date>=start&&r.Date<=end).ToArray();
+  HistoryRange.Text=$"{start.Year}年{start.Month}月{start.Day}日 – {end.Year}年{end.Month}月{end.Day}日";
+  var counts=WeatherBeacon.Controls.WeatherHeatmap.Ramp.Select(k=>(k.Name,Count:inRange.Count(r=>r.Kind==k.Kind))).Where(k=>k.Count>0).OrderByDescending(k=>k.Count).Select(k=>$"{k.Name} {k.Count} 天");
+  HistorySummary.Text=inRange.Length==0?"尚无记录":$"已记录 {inRange.Length} 天：{string.Join("，",counts)}"+(historyPreview?"（示例数据）":"");
+  HistoryEmpty.Visibility=inRange.Length==0?Visibility.Visible:Visibility.Collapsed;
+ }
+ private void BuildHistoryLegend()
+ {
+  var entries=WeatherBeacon.Controls.WeatherHeatmap.Ramp.Select(r=>((WeatherBeacon.Core.Models.WeatherKind?)r.Kind,r.Name,r.Color,r.Meaning)).Append((null,"无记录",WeatherBeacon.Controls.WeatherHeatmap.EmptyColor,"当天 WeatherBeacon 没有运行或没有成功刷新"));
+  foreach(var (kind,name,color,meaning) in entries)
+  {
+   var swatch=new Border{Width=12,Height=12,CornerRadius=new CornerRadius(3),Background=new SolidColorBrush(color),Margin=new Thickness(0,0,6,0),VerticalAlignment=VerticalAlignment.Center};
+   var item=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,14,4),Background=Brushes.Transparent,Cursor=System.Windows.Input.Cursors.Help,ToolTip=$"{name}：{meaning}"};
+   item.Children.Add(swatch);item.Children.Add(new TextBlock{Text=name,FontSize=11,Foreground=new SolidColorBrush(Color.FromRgb(0xC1,0xD2,0xD8)),VerticalAlignment=VerticalAlignment.Center});
+   // Hovering a legend entry brings that kind of day forward and dims the rest.
+   item.MouseEnter+=(_,_)=>{if(kind is not null)Heatmap.FocusOn(kind);};item.MouseLeave+=(_,_)=>Heatmap.FocusOn(null);
+   HistoryLegend.Children.Add(item);
+  }
+ }
+ private void HistoryPreview_Click(object sender,RoutedEventArgs e)
+ {
+  historyPreview=!historyPreview;HistoryPreviewButton.Content=historyPreview?"恢复真实记录":"预览示例记录";
+  RefreshHistory(historyPreview?WeatherBeacon.Features.History.HistorySample.Year(DateOnly.FromDateTime(DateTime.Today),settings.City?.Name??"示例城市"):null);
+  Status.Text=historyPreview?"天气记录页正在显示示例数据。":"天气记录页已恢复真实记录。";
  }
  private bool onboardingPending;
  private async void RestartOnboarding_Click(object sender,RoutedEventArgs e)=>await RunOnboarding();
@@ -107,7 +144,7 @@ public partial class SettingsWindow : Window
  }
  private void ShowPage(int index,bool animate)
  {
-  var pages=new FrameworkElement[]{AppearancePage,WeatherPage,AboutPage,NotificationsPage,DeveloperPage};
+  var pages=new FrameworkElement[]{AppearancePage,WeatherPage,AboutPage,NotificationsPage,HistoryPage,DeveloperPage};
   if(index<0||index>=pages.Length)return;
   var target=pages[index];
   foreach(var page in pages)
@@ -117,6 +154,7 @@ public partial class SettingsWindow : Window
    page.Opacity=1;page.IsHitTestVisible=page==target;
    if(page.RenderTransform is TranslateTransform transform)transform.Y=0;else page.RenderTransform=new TranslateTransform();
   }
+  if(PageEquals(target,HistoryPage)){Heatmap.Fahrenheit=settings.Fahrenheit;Heatmap.PlayReveal();}
   if(!animate)return;
   target.Opacity=0;
   var enter=new TranslateTransform(0,8);target.RenderTransform=enter;
@@ -157,7 +195,7 @@ public partial class SettingsWindow : Window
  private void UpdateDeveloperNavigation()
  {
   DeveloperToggle.IsChecked=settings.DeveloperMode;
-  if(!settings.DeveloperMode&&Navigation.SelectedIndex==4)Navigation.SelectedIndex=2;
+  if(!settings.DeveloperMode&&Navigation.SelectedIndex==5)Navigation.SelectedIndex=2;
   DeveloperNavigation.Visibility=settings.DeveloperMode?Visibility.Visible:Visibility.Collapsed;
  }
  private bool developerConfirmationPending;

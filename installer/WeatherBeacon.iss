@@ -1,4 +1,7 @@
 #define AppVersion "1.0.0.0"
+#ifndef Arch
+ #define Arch "x64"
+#endif
 #define ProjectRoot AddBackslash(SourcePath) + ".."
 #ifndef PublishDir
  #define PublishDir ProjectRoot + "\..\release\notification-fix-win-x64"
@@ -22,8 +25,16 @@ DefaultDirName={localappdata}\Programs\WeatherBeacon
 DefaultGroupName=WeatherBeacon
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
+#if Arch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#elif Arch == "x86"
+; 32-bit build: runs natively on x86 and under emulation on x64/ARM64 Windows.
+ArchitecturesAllowed=x86compatible
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 MinVersion=10.0.18362
 WizardStyle=modern
 DisableWelcomePage=no
@@ -33,7 +44,7 @@ SetupIconFile={#ProjectRoot}\src\WeatherBeacon.App\Assets\WeatherBeacon.ico
 UninstallDisplayIcon={app}\WeatherBeacon.exe
 UninstallDisplayName=WeatherBeacon {#AppVersion}
 OutputDir={#SetupOutputDir}
-OutputBaseFilename=WeatherBeacon-{#AppVersion}-x64-Setup
+OutputBaseFilename=WeatherBeacon-{#AppVersion}-{#Arch}-Setup
 Compression=lzma2
 SolidCompression=yes
 CloseApplications=no

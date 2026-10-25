@@ -144,7 +144,7 @@ internal static class Program
   var navigation=(ListBox)window.FindName("Navigation");navigation.SelectedIndex=3;Pump(300);
   Capture(window,Path.Combine(output,"notifications.png"));
   Check(((FrameworkElement)window.FindName("DeveloperNavigation")).Visibility==Visibility.Collapsed,"developer hidden by default");
-  settings.DeveloperMode=true;navigation.SelectedIndex=4;Pump(300);Capture(window,Path.Combine(output,"developer.png"));
+  settings.DeveloperMode=true;navigation.SelectedIndex=5;Pump(300);Capture(window,Path.Combine(output,"developer.png"));
   Check(((FrameworkElement)window.FindName("DeveloperPage")).Visibility==Visibility.Visible,"developer page enabled");
   settings.DeveloperMode=false;Check(navigation.SelectedIndex==2,"disable exits developer page");
   var toggle=(WeatherBeacon.Controls.ConfirmationSwitch)window.FindName("DeveloperToggle");

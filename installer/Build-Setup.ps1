@@ -1,7 +1,8 @@
-param(
+﻿param(
     [string]$PublishDir,
     [string]$OutputDir,
-    [string]$Compiler
+    [string]$Compiler,
+    [ValidateSet('x86','x64','arm64')][string]$Arch = 'x64'
 )
 $ErrorActionPreference = 'Stop'
 $sourceRoot = Split-Path $PSScriptRoot -Parent
@@ -23,6 +24,6 @@ $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($product)
 if ($version.FileVersion -ne '1.0.0.0' -or $version.ProductVersion -ne '1.0.0.0') { throw 'The product version must be 1.0.0.0.' }
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 $OutputDir = (Resolve-Path -LiteralPath $OutputDir).Path
-& $Compiler "/DPublishDir=$PublishDir" "/DSetupOutputDir=$OutputDir" (Join-Path $PSScriptRoot 'WeatherBeacon.iss')
+& $Compiler "/DPublishDir=$PublishDir" "/DSetupOutputDir=$OutputDir" "/DArch=$Arch" (Join-Path $PSScriptRoot 'WeatherBeacon.iss')
 if ($LASTEXITCODE -ne 0) { throw "Installer compiler failed with exit code $LASTEXITCODE." }
-Write-Output (Join-Path $OutputDir 'WeatherBeacon-1.0.0.0-x64-Setup.exe')
+Write-Output (Join-Path $OutputDir "WeatherBeacon-1.0.0.0-$Arch-Setup.exe")

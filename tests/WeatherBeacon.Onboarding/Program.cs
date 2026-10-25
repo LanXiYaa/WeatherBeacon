@@ -33,7 +33,7 @@ internal static class Program
   var cancel=wizard.ShowAsync(model,provider,_=>throw new Exception("must not save cancelled draft"),CancellationToken.None);Click("Next");wizard.Cancel();Pump(750);Check(cancel.IsCompletedSuccessfully&&!cancel.Result,"cancel during transition");
   var roundTrip=System.Text.Json.JsonSerializer.Deserialize<SettingsModel>(System.Text.Json.JsonSerializer.Serialize(new SettingsModel{OnboardingCompleted=true,SystemInfoConsent=true}));Check(roundTrip!.OnboardingCompleted&&roundTrip.SystemInfoConsent,"consent serialization");
   var replay=wizard.ShowAsync(new SettingsModel{City=saved!.City,SystemInfoConsent=true,Material=2},provider,_=>null,CancellationToken.None);Check(((ToggleButton)wizard.FindName("ConsentChoice")).IsChecked==true,"replay loads previous consent");wizard.Cancel();
-  model.DeveloperMode=true;((ListBox)w.FindName("Navigation")).SelectedIndex=4;Pump(300);var replayButton=(Button)w.FindName("RestartOnboarding");replayButton.ApplyTemplate();
+  model.DeveloperMode=true;((ListBox)w.FindName("Navigation")).SelectedIndex=5;Pump(300);var replayButton=(Button)w.FindName("RestartOnboarding");replayButton.ApplyTemplate();
   var key=(DependencyPropertyKey)typeof(ButtonBase).GetField("IsPressedPropertyKey",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
   replayButton.SetValue(key,true);Pump(120);
   var scale=(ScaleTransform)((Grid)replayButton.Template.FindName("Surface",replayButton)).RenderTransform;var depth=(Border)replayButton.Template.FindName("InnerDepth",replayButton);

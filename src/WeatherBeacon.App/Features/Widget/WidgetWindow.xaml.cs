@@ -129,6 +129,7 @@ public partial class WidgetWindow : Window
    if(vm.LastRefreshSucceeded&&vm.LastSnapshot is {} snapshot&&settings.City==city)
    {
     settings.SetAlertDataStatus(snapshot.AlertStatus);
+    WeatherBeacon.Features.History.WeatherHistory.Default.Record(snapshot);
     alertDelivery.Process(city.ProviderCityId,snapshot,settings.NotificationsEnabled,(WeatherBeacon.Core.Models.AlertLevel)settings.AlertThreshold,a=>notifications.Send(a,city.Name,false,city.ProviderCityId),slot=>notifications.Remove(city.ProviderCityId,slot));
     settings.SetDeliveryStatus(alertDelivery.Status);
    }
